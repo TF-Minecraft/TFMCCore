@@ -22,7 +22,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import me.Plugins.TLibs.TLibs;
+import net.tfminecraft.tlibs.TLibs;
 import net.tfminecraft.tfmccore.TFMCCore;
 
 public class WhistleListener implements Listener {

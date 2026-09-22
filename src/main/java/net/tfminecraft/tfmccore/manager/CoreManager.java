@@ -19,8 +19,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import me.Plugins.TLibs.TLibs;
-import me.Plugins.TLibs.Armour.ArmorEquipEvent;
+import net.tfminecraft.tlibs.TLibs;
+import net.tfminecraft.tlibs.armour.ArmorEquipEvent;
 import net.tfminecraft.tfmccore.cache.Cache;
 
 public class CoreManager implements Listener{

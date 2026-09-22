@@ -3,13 +3,13 @@ package net.tfminecraft.tfmccore.stats.categories.rpcharacters;
 import java.util.Locale;
 import java.util.UUID;
 
-import net.tfminecraft.RPCharacters.Objects.Races.Race;
-import net.tfminecraft.RPCharacters.chat.CharacterChatEvent;
-import net.tfminecraft.RPCharacters.lifecycle.CharacterClassChangeEvent;
-import net.tfminecraft.RPCharacters.lifecycle.CharacterCreatedEvent;
-import net.tfminecraft.RPCharacters.lifecycle.CharacterRaceChangeEvent;
-import net.tfminecraft.RPCharacters.permadeath.CharacterPermakillEvent;
-import net.tfminecraft.RPCharacters.permadeath.PermakillCause;
+import net.tfminecraft.rpcharacters.objects.races.Race;
+import net.tfminecraft.rpcharacters.chat.CharacterChatEvent;
+import net.tfminecraft.rpcharacters.lifecycle.CharacterClassChangeEvent;
+import net.tfminecraft.rpcharacters.lifecycle.CharacterCreatedEvent;
+import net.tfminecraft.rpcharacters.lifecycle.CharacterRaceChangeEvent;
+import net.tfminecraft.rpcharacters.permadeath.CharacterPermakillEvent;
+import net.tfminecraft.rpcharacters.permadeath.PermakillCause;
 import net.tfminecraft.tfmccore.stats.StatManager;
 
 public final class RpCharactersStatMain {

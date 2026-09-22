@@ -4,7 +4,7 @@ import java.io.File;
 
 import org.bukkit.plugin.java.JavaPlugin;
 
-import me.Plugins.TLibs.database.SqliteProvider;
+import net.tfminecraft.tlibs.database.SqliteProvider;
 import net.tfminecraft.tfmccore.commands.CoreCommands;
 import net.tfminecraft.tfmccore.commands.CoreTabCompletion;
 import net.tfminecraft.tfmccore.commands.SilentPermissionCommand;

@@ -3,10 +3,10 @@ package net.tfminecraft.tfmccore.stats.categories.advancedcrafting;
 import java.util.Locale;
 import java.util.UUID;
 
-import net.tfminecraft.AdvancedCrafting.lifecycle.AlloyCraftedEvent;
-import net.tfminecraft.AdvancedCrafting.lifecycle.AlloyDiscoveredEvent;
-import net.tfminecraft.AdvancedCrafting.lifecycle.ItemCraftedEvent;
-import net.tfminecraft.AdvancedCrafting.lifecycle.SmithingHitEvent;
+import net.tfminecraft.advancedcrafting.lifecycle.AlloyCraftedEvent;
+import net.tfminecraft.advancedcrafting.lifecycle.AlloyDiscoveredEvent;
+import net.tfminecraft.advancedcrafting.lifecycle.ItemCraftedEvent;
+import net.tfminecraft.advancedcrafting.lifecycle.SmithingHitEvent;
 import net.tfminecraft.tfmccore.stats.StatManager;
 
 public final class AdvancedCraftingStatMain {

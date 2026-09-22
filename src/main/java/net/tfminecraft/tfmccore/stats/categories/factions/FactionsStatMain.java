@@ -2,7 +2,7 @@ package net.tfminecraft.tfmccore.stats.categories.factions;
 
 import java.util.UUID;
 
-import me.Plugins.SimpleFactions.War.battle.events.BattleEndedEvent;
+import net.tfminecraft.simplefactions.war.battle.events.BattleEndedEvent;
 import net.tfminecraft.tfmccore.stats.StatManager;
 
 public final class FactionsStatMain {

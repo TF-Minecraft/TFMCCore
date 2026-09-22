@@ -10,8 +10,8 @@ import java.util.UUID;
 
 import org.bukkit.Bukkit;
 
-import me.Plugins.TLibs.database.SqliteDatabase;
-import me.Plugins.TLibs.database.SqliteDatabaseException;
+import net.tfminecraft.tlibs.database.SqliteDatabase;
+import net.tfminecraft.tlibs.database.SqliteDatabaseException;
 
 public final class SqliteStatStorage implements StatStorage {
     private static final String CREATE_TABLE = """
