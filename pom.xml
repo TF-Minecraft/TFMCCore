@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>net.tfminecraft</groupId>
@@ -9,21 +9,14 @@
     <version>1.0.0</version>
 
     <properties>
-        <simplefactions.version>2.8.7</simplefactions.version>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <advancedcrafting.version>1.2.3</advancedcrafting.version>
         <rpcharacters.version>1.1.7</rpcharacters.version>
-        <vehicleframework.version>1.1.13</vehicleframework.version>
+        <simplefactions.version>2.8.7</simplefactions.version>
         <tlibs.version>1.1.1</tlibs.version>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>21</maven.compiler.release>
+        <vehicleframework.version>1.1.13</vehicleframework.version>
     </properties>
-
-    <repositories>
-        <repository>
-            <id>papermc</id>
-            <url>https://repo.papermc.io/repository/maven-public/</url>
-        </repository>
-    </repositories>
 
     <dependencies>
         <!-- Paper API: superset of spigot-api, and the server actually runs Paper -->
@@ -33,7 +26,6 @@
             <version>1.21.10-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
-
         <!-- Shaded into the server jar at runtime, so provided -->
         <dependency>
             <groupId>com.google.code.gson</groupId>
@@ -41,7 +33,6 @@
             <version>2.10.1</version>
             <scope>provided</scope>
         </dependency>
-
         <!-- Private jar-only deps. Gitignored; CI downloads them from the
              JustinasLa/tfmc-deps release and verifies libs/SHA256SUMS.
              Versions must match what the live server runs: compiling against a
@@ -53,7 +44,10 @@
             <scope>provided</scope>
             <exclusions>
                 <!-- The server supplies TLibs and its integrations. -->
-                <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
@@ -62,7 +56,10 @@
             <version>${vehicleframework.version}</version>
             <scope>provided</scope>
             <exclusions>
-                <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
@@ -71,7 +68,10 @@
             <version>${rpcharacters.version}</version>
             <scope>provided</scope>
             <exclusions>
-                <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
@@ -80,7 +80,10 @@
             <version>${advancedcrafting.version}</version>
             <scope>provided</scope>
             <exclusions>
-                <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
@@ -89,7 +92,10 @@
             <version>${simplefactions.version}</version>
             <scope>provided</scope>
             <exclusions>
-                <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
@@ -113,7 +119,6 @@
             <version>5.4</version>
             <scope>provided</scope>
         </dependency>
-
         <!-- Tests -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -141,17 +146,28 @@
         </dependency>
     </dependencies>
 
+    <repositories>
+        <repository>
+            <id>papermc</id>
+            <url>https://repo.papermc.io/repository/maven-public/</url>
+        </repository>
+    </repositories>
+
     <build>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
-                <includes><include>plugin.yml</include></includes>
+                <includes>
+                    <include>plugin.yml</include>
+                </includes>
             </resource>
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>false</filtering>
-                <excludes><exclude>plugin.yml</exclude></excludes>
+                <excludes>
+                    <exclude>plugin.yml</exclude>
+                </excludes>
             </resource>
         </resources>
         <finalName>${project.artifactId}-${project.version}</finalName>
@@ -168,5 +184,4 @@
             </plugin>
         </plugins>
     </build>
-
 </project>
