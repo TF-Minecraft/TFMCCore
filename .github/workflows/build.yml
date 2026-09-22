@@ -2,96 +2,54 @@ name: Build
 
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:
-
-concurrency:
-  # Keep every push build, even when another commit is pushed immediately.
-  group: ${{ github.workflow }}-${{ github.run_id }}
-  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
   build:
-    # Fork PRs and Dependabot do not receive the private dependency secret.
-    if: github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: '21'
-          cache: maven
-
-      - name: Fetch private dependencies
+          java-version: '25'
+      - name: Prepare pinned dependencies
         env:
           GH_TOKEN: ${{ secrets.DEPS_TOKEN }}
+        run: bash .github/scripts/prepare-release.sh
+      - name: Set dated development version
+        id: dev
+        shell: bash
         run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "::error::Set DEPS_TOKEN to a token with Contents: read access to JustinasLa/tfmc-deps."
-            exit 1
-          fi
-          mkdir -p libs
-          gh release download v1 --repo JustinasLa/tfmc-deps --dir libs --clobber \
-            --pattern 'TLibs-1.0.jar' \
-            --pattern 'vehicleframework-1.1.11.jar' \
-            --pattern 'rpcharacters-1.1.6.jar' \
-            --pattern 'advancedcrafting-1.1.7.jar' \
-            --pattern 'simplefactions-2.8.7.jar' \
-            --pattern 'MMOCore-1.13.1.jar' \
-            --pattern 'MythicLib-dist-1.7.1.jar'
+          dev_version="DEV-$(date -u +%Y%m%d-%H%M)"
+          mvn -B --no-transfer-progress org.codehaus.mojo:versions-maven-plugin:2.22.0:set \
+            -DnewVersion="$dev_version" -DgenerateBackupPoms=false
+          mvn -B --no-transfer-progress help:evaluate \
+            -Dexpression=project.build.finalName -Doutput="$RUNNER_TEMP/final-name"
+          final_name=$(cat "$RUNNER_TEMP/final-name")
+          echo "name=$final_name" >> "$GITHUB_OUTPUT"
+          echo "jar=target/$final_name.jar" >> "$GITHUB_OUTPUT"
 
-      - name: Verify private dependencies
-        run: sha256sum -c libs/SHA256SUMS
-
-      - name: Build
-        run: mvn -B --no-transfer-progress -P'!deploy-live' clean package
-
-      - uses: actions/upload-artifact@v4
+      - name: Run unit tests and build
+        run: mvn -B --no-transfer-progress clean verify -DskipTests=false -Dmaven.test.skip=false
+      - uses: actions/upload-artifact@v7
         with:
-          name: tfmccore-jar-${{ github.sha }}
-          path: target/*.jar
+          name: ${{ steps.dev.outputs.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.dev.outputs.jar }}
           if-no-files-found: error
-          retention-days: 90
 
-  publish:
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write
-    concurrency:
-      group: publish-latest-release
-    steps:
-      - uses: actions/checkout@v4
+      - name: Upload unit test reports
+        if: ${{ !cancelled() && hashFiles('target/surefire-reports/*.xml') != '' }}
+        uses: actions/upload-artifact@v7
         with:
-          persist-credentials: false
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: tfmccore-jar-${{ github.sha }}
-          path: target
-
-      # --clobber only replaces an asset with the same filename; a pom.xml
-      # version bump changes the jar name, so old jars won't be pruned
-      # automatically and must be removed from the release manually.
-      - name: Publish latest release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if gh release view latest >/dev/null 2>&1; then
-            gh release upload latest target/*.jar --clobber
-          else
-            gh release create latest target/*.jar \
-              --title "Latest build" --notes "Auto-published from main" --latest=false
-          fi
+          name: unit-test-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/surefire-reports/
+          if-no-files-found: error
