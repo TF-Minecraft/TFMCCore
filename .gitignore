@@ -35,3 +35,6 @@ Thumbs.db
 # Private jar-only deps: fetched from JustinasLa/tfmc-deps, never committed
 libs/*
 !libs/SHA256SUMS
+
+# Downloaded build dependencies
+/libs/*.jar

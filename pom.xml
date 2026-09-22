@@ -13,13 +13,6 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
-        <tfmc.refs>D:/Dokumenter/My Plugins/Reference Libs</tfmc.refs>
-        <tfmc.builds>D:/Dokumenter/My Plugins/TFMC/TFMCCore</tfmc.builds>
-
-        <tfmc.vehicleframework>D:/Dokumenter/My Plugins/TFMC/VehicleFramework</tfmc.vehicleframework>
-        <tfmc.rpcharacters>D:/Dokumenter/My Plugins/TFMC/RPCharacters</tfmc.rpcharacters>
-        <tfmc.advancedcrafting>D:/Dokumenter/My Plugins/TFMC/AdvancedCrafting</tfmc.advancedcrafting>
-        <tfmc.sf>D:/Dokumenter/My Plugins/TFMC/SimpleFactions</tfmc.sf>
     </properties>
 
     <repositories>
@@ -63,44 +56,44 @@
         <dependency>
             <groupId>local</groupId>
             <artifactId>VehicleFramework</artifactId>
-            <version>1.1.11</version>
+            <version>1.1.12</version>
             <scope>system</scope>
-            <systemPath>${tfmc.vehicleframework}/vehicleframework-1.1.11.jar</systemPath>
+            <systemPath>${project.basedir}/libs/vehicleframework-1.1.12.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>local</groupId>
             <artifactId>RPCharacters</artifactId>
             <version>1.1.7</version>
             <scope>system</scope>
-            <systemPath>${tfmc.rpcharacters}/rpcharacters-1.1.7.jar</systemPath>
+            <systemPath>${project.basedir}/libs/rpcharacters-1.1.7.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>local</groupId>
             <artifactId>AdvancedCrafting</artifactId>
-            <version>1.1.7</version>
+            <version>1.2.1</version>
             <scope>system</scope>
-            <systemPath>${tfmc.advancedcrafting}/advancedcrafting-1.1.7.jar</systemPath>
+            <systemPath>${project.basedir}/libs/advancedcrafting-1.2.1.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>local</groupId>
             <artifactId>SimpleFactions</artifactId>
             <version>2.8.7</version>
             <scope>system</scope>
-            <systemPath>${tfmc.sf}/simplefactions-2.8.7.jar</systemPath>
+            <systemPath>${project.basedir}/libs/simplefactions-2.8.7.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>local</groupId>
             <artifactId>MythicLib</artifactId>
             <version>1.7.1</version>
             <scope>system</scope>
-            <systemPath>${tfmc.refs}/MythicLib-dist-1.7.1.jar</systemPath>
+            <systemPath>${project.basedir}/libs/MythicLib-dist-1.7.1.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>local</groupId>
             <artifactId>MMOCore</artifactId>
             <version>1.13.1</version>
             <scope>system</scope>
-            <systemPath>${tfmc.refs}/MMOCore-1.13.1.jar</systemPath>
+            <systemPath>${project.basedir}/libs/MMOCore-1.13.1.jar</systemPath>
         </dependency>
         <!-- Compile-time only; LuckPerms plugin provides API at runtime -->
         <dependency>
@@ -138,7 +131,19 @@
     </dependencies>
 
     <build>
-        <finalName>TFMCCore</finalName>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes><include>plugin.yml</include></includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes><exclude>plugin.yml</exclude></excludes>
+            </resource>
+        </resources>
+        <finalName>${project.artifactId}-${project.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -149,24 +154,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <version>3.1.0</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals><goal>run</goal></goals>
-                        <configuration>
-                            <target>
-                                <mkdir dir="${tfmc.builds}"/>
-                                <copy file="${project.build.directory}/${project.build.finalName}.jar"
-                                    tofile="${tfmc.builds}/TFMCCore.jar"/>
-                            </target>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>
