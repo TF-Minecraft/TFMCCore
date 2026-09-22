@@ -21,6 +21,8 @@ public final class TextUtil {
      * Expands {@code &#RRGGBB} hex codes into the Bukkit legacy form and then translates
      * ordinary {@code &a} style colour codes.
      */
+    // Keep the existing legacy text representation, formatting, and exact-string comparisons.
+    @SuppressWarnings("deprecation")
     public static String color(String message) {
         if (message == null || message.isEmpty()) return message;
         Matcher matcher = HEX_PATTERN.matcher(message);

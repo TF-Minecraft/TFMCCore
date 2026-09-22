@@ -24,6 +24,8 @@ public class LetterListener implements Listener {
     public void onBookSign(PlayerEditBookEvent event) {
         Player player = event.getPlayer();
         // Read from the slot the event names, not the main hand - books can be signed from the off-hand.
+        // No replacement exposes the originating slot; retain it for deferred book restoration.
+        @SuppressWarnings("removal")
         int slot = event.getSlot();
         if (slot < 0 || slot >= player.getInventory().getSize()) return;
         ItemStack handItem = player.getInventory().getItem(slot);

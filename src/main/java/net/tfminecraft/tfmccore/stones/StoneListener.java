@@ -122,6 +122,8 @@ public class StoneListener implements Listener {
                 "%timeout%", String.valueOf(seconds));
     }
 
+    // Retain Bukkit chat-event ordering and String message semantics for existing integrations.
+    @SuppressWarnings("deprecation")
     @EventHandler(ignoreCancelled = true)
     public void onChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
@@ -144,6 +146,8 @@ public class StoneListener implements Listener {
     }
 
     // Main thread: everything that touches the inventory.
+    // Keep the existing legacy text representation, formatting, and exact-string comparisons.
+    @SuppressWarnings("deprecation")
     private void apply(Player player, String raw) {
         Pending pd = pending.remove(player.getUniqueId());
         if (pd == null) {

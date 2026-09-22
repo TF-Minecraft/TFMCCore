@@ -67,6 +67,8 @@ public class LetterItems {
      * survives vanilla's plain book write, with the new pages and the previous
      * display name, lore, and PDC.
      */
+    // Keep the existing legacy text representation, formatting, and exact-string comparisons.
+    @SuppressWarnings("deprecation")
     public ItemStack createEditedLetter(BookMeta source, ItemStack previous) {
         try {
             ItemStack stack = template(LetterConfig.letterPath);
@@ -137,6 +139,8 @@ public class LetterItems {
         }
     }
 
+    // Keep the existing legacy text representation, formatting, and exact-string comparisons.
+    @SuppressWarnings("deprecation")
     private void copyBookContent(BookMeta source, BookMeta target) {
         target.setPages(source.getPages());
         if (source.hasTitle()) {
