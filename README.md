@@ -1,40 +1,24 @@
-# tfmccore
+# TFMC Core
 
-Technical documentation is maintained in [TF-Minecraft/Docs](https://github.com/TF-Minecraft/Docs/blob/main/projects/TFMCCore/README.md).
+> Shared roleplay features and server systems for TF-Minecraft.
 
-Use that project index for setup, configuration, architecture, integration and testing guides. This repository contains the source and project-specific assets.
+TFMC Core brings together small gameplay features and shared services used across the server. It supports character progression, personalized items, correspondence, and activity records, alongside custom drops and crafting-station interactions.
 
-## TLibs build dependency
+These features give other TF-Minecraft plugins common building blocks while also adding everyday interactions players can use directly.
 
-TLibs is a versioned Maven `provided` dependency. From this repository, prepare
-it once with the shared installer, then build as usual:
+## Features
 
-```sh
-python3 ../tlibs/tools/install-dependency.py --pom pom.xml
-mvn clean verify
-```
+- **Character focus** — a regenerating mental resource associated with roleplay characters, used by research and magic systems.
+- **Sealed letters** — turn written correspondence into sealed items that visibly change when opened.
+- **Personalized items** — lorestones add descriptive text and namestones change an item's name through an in-game prompt.
+- **Animal whistles** — highlight nearby supported animals to help players locate them.
+- **Shared gameplay rules** — custom drop handling and station interactions connect everyday world actions to server content.
+- **Cross-plugin statistics** — records supported vehicle, character, crafting, skill, and faction events for staff queries.
 
-See [TLibs dependency setup](https://github.com/TF-Minecraft/TLibs/blob/5da8e77d0e0696bbff7d7064a2644072da9c6428/DEPENDENCIES.md)
-for public release installation, offline builds and rollback.
-Other declared build dependencies still need their usual preparation.
+TFMC Core works alongside the server's specialist plugins, connecting their systems with the smaller details that make the roleplay world feel consistent.
 
-Builds and server runtime require Java 25. Local builds default to [TLibs 1.1.0](https://github.com/TF-Minecraft/TLibs/releases/tag/v1.1.0); CI resolves the latest published stable TLibs release for each build, verifies its checksum, and uses its exact version throughout that job.
+## Documentation
 
-## Shared plugin dependencies
+[Project documentation](https://github.com/TF-Minecraft/Docs/blob/main/projects/TFMCCore/README.md)
 
-Build and release workflows install checksum-verified plugin releases through
-[TLibs' shared installer](https://github.com/TF-Minecraft/TLibs/blob/main/DEPENDENCIES.md).
-CI selects the latest published versions; local builds use the explicit Maven
-version properties. Shared plugins use `provided` scope and remain separate
-server plugins. Each build records exact versions and checksums in
-`.build/plugin-dependencies.json` alongside its JAR.
-
-From this checkout, with the TLibs repository next to it:
-
-```sh
-python3 ../tlibs/tools/install-plugins.py --pom pom.xml
-```
-
-Prepare any remaining third-party inputs with `.github/scripts/prepare-release.sh`
-before running Maven. Any source-unavailable inputs remain private and checksum-pinned wherever declared; see the installer
-documentation for authentication and reproducible rebuilds.
+Technical documentation is maintained in [TF-Minecraft/Docs](https://github.com/TF-Minecraft/Docs).
