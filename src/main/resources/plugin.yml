@@ -1,5 +1,5 @@
 main: net.tfminecraft.tfmccore.TFMCCore
-api-version: 1.21
+api-version: '1.21.10'
 name: TFMCCore
 version: ${project.version}
 author: Drefvelin
