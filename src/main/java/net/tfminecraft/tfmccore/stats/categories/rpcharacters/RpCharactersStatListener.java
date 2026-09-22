@@ -4,11 +4,11 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 
-import net.tfminecraft.RPCharacters.chat.CharacterChatEvent;
-import net.tfminecraft.RPCharacters.lifecycle.CharacterClassChangeEvent;
-import net.tfminecraft.RPCharacters.lifecycle.CharacterCreatedEvent;
-import net.tfminecraft.RPCharacters.lifecycle.CharacterRaceChangeEvent;
-import net.tfminecraft.RPCharacters.permadeath.CharacterPermakillEvent;
+import net.tfminecraft.rpcharacters.chat.CharacterChatEvent;
+import net.tfminecraft.rpcharacters.lifecycle.CharacterClassChangeEvent;
+import net.tfminecraft.rpcharacters.lifecycle.CharacterCreatedEvent;
+import net.tfminecraft.rpcharacters.lifecycle.CharacterRaceChangeEvent;
+import net.tfminecraft.rpcharacters.permadeath.CharacterPermakillEvent;
 
 public final class RpCharactersStatListener implements Listener {
     private final RpCharactersStatMain main;

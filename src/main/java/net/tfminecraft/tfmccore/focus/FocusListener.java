@@ -5,7 +5,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-import net.tfminecraft.RPCharacters.lifecycle.CharacterActivatedEvent;
+import net.tfminecraft.rpcharacters.lifecycle.CharacterActivatedEvent;
 
 public final class FocusListener implements Listener {
 

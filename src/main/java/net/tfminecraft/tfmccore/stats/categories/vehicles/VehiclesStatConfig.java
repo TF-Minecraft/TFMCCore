@@ -11,7 +11,7 @@ import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
-import net.tfminecraft.VehicleFramework.Enums.VehicleDeath;
+import net.tfminecraft.vehicleframework.enums.VehicleDeath;
 import net.tfminecraft.tfmccore.stats.StatLabelFormatter;
 
 public final class VehiclesStatConfig {

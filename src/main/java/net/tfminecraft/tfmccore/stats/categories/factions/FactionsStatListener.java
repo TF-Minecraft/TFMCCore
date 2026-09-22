@@ -4,7 +4,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 
-import me.Plugins.SimpleFactions.War.battle.events.BattleEndedEvent;
+import net.tfminecraft.simplefactions.war.battle.events.BattleEndedEvent;
 
 public final class FactionsStatListener implements Listener {
     private final FactionsStatMain main;

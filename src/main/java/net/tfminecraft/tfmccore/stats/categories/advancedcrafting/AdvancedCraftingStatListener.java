@@ -4,10 +4,10 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 
-import net.tfminecraft.AdvancedCrafting.lifecycle.AlloyCraftedEvent;
-import net.tfminecraft.AdvancedCrafting.lifecycle.AlloyDiscoveredEvent;
-import net.tfminecraft.AdvancedCrafting.lifecycle.ItemCraftedEvent;
-import net.tfminecraft.AdvancedCrafting.lifecycle.SmithingHitEvent;
+import net.tfminecraft.advancedcrafting.lifecycle.AlloyCraftedEvent;
+import net.tfminecraft.advancedcrafting.lifecycle.AlloyDiscoveredEvent;
+import net.tfminecraft.advancedcrafting.lifecycle.ItemCraftedEvent;
+import net.tfminecraft.advancedcrafting.lifecycle.SmithingHitEvent;
 
 public final class AdvancedCraftingStatListener implements Listener {
     private final AdvancedCraftingStatMain main;

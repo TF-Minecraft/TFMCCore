@@ -10,7 +10,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import net.tfminecraft.VehicleFramework.Enums.VehicleDeath;
+import net.tfminecraft.vehicleframework.enums.VehicleDeath;
 
 class VehiclesStatConfigTest {
     @Test

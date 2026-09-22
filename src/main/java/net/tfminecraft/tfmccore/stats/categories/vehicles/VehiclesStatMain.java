@@ -4,12 +4,12 @@ import java.util.Optional;
 
 import org.bukkit.entity.Player;
 
-import net.tfminecraft.VehicleFramework.Data.VehicleRemovePayload;
-import net.tfminecraft.VehicleFramework.Enums.SeatType;
-import net.tfminecraft.VehicleFramework.Enums.VehicleDeath;
-import net.tfminecraft.VehicleFramework.Events.VehicleRemoveEvent;
-import net.tfminecraft.VehicleFramework.Vehicles.ActiveVehicle;
-import net.tfminecraft.VehicleFramework.Vehicles.Seat.Seat;
+import net.tfminecraft.vehicleframework.data.VehicleRemovePayload;
+import net.tfminecraft.vehicleframework.enums.SeatType;
+import net.tfminecraft.vehicleframework.enums.VehicleDeath;
+import net.tfminecraft.vehicleframework.events.VehicleRemoveEvent;
+import net.tfminecraft.vehicleframework.vehicles.ActiveVehicle;
+import net.tfminecraft.vehicleframework.vehicles.seat.Seat;
 import net.tfminecraft.tfmccore.stats.StatManager;
 
 public final class VehiclesStatMain {

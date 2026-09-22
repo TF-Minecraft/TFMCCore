@@ -9,7 +9,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
-import me.Plugins.TLibs.Utils.TabCleaner;
+import net.tfminecraft.tlibs.utils.TabCleaner;
 import net.tfminecraft.tfmccore.stats.StatCategoryRegistry;
 
 public final class CoreTabCompletion implements TabCompleter {
