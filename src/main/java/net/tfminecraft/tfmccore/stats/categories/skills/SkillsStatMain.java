@@ -23,6 +23,8 @@ public final class SkillsStatMain {
             return;
         }
 
+        // Preserve the legacy CAST/API statistics filter; metadata triggers would change counted casts.
+        @SuppressWarnings("deprecation")
         TriggerType trigger = cast.getTrigger();
         if (trigger != TriggerType.CAST && trigger != TriggerType.API) {
             return;

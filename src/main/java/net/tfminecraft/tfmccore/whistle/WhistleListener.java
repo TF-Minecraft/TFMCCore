@@ -104,7 +104,7 @@ public class WhistleListener implements Listener {
             // so fall back to matching registry entries with all separators stripped.
             String flattened = raw.toLowerCase().replace("_", "");
             for (Sound candidate : Registry.SOUNDS) {
-                String candidateKey = candidate.getKey().getKey().replace(".", "").replace("_", "");
+                String candidateKey = Registry.SOUNDS.getKey(candidate).getKey().replace(".", "").replace("_", "");
                 if (candidateKey.equalsIgnoreCase(flattened)) {
                     cachedSound = candidate;
                     break;
@@ -117,6 +117,8 @@ public class WhistleListener implements Listener {
         return cachedSound;
     }
 
+    // Keep the existing legacy text representation, formatting, and exact-string comparisons.
+    @SuppressWarnings("deprecation")
     private void sendMessage(Player player, String message) {
         if (message == null || message.isEmpty()) return;
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', message));

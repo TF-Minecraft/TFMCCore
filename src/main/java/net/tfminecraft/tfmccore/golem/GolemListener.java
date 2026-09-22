@@ -43,7 +43,7 @@ public class GolemListener implements Listener {
             + " axe=" + axe
             + " prevent=" + Cache.preventGolemScrape
             + " spawnScrape=" + spawnScrape
-            + " cancelledBefore=" + event.isCancelled()
+            + " cancelledBefore=" + (event.useInteractedBlock() == org.bukkit.event.Event.Result.DENY)
             + " willCancel=" + shouldBlock);
 
         if (shouldBlock) {
