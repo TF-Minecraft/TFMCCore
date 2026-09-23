@@ -30,7 +30,7 @@
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
-            <version>2.10.1</version>
+            <version>2.14.0</version>
             <scope>provided</scope>
         </dependency>
         <!-- Private jar-only deps. Gitignored; CI downloads them from the
@@ -101,20 +101,20 @@
         <dependency>
             <groupId>local</groupId>
             <artifactId>MythicLib</artifactId>
-            <version>1.7.1-tfmc-a3f86a50d382</version>
+            <version>1.7.1-SNAPSHOT-tfmc-225aa7f75d4e</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>local</groupId>
             <artifactId>MMOCore</artifactId>
-            <version>1.13.1-tfmc-14850d745437</version>
+            <version>1.13.1-SNAPSHOT-tfmc-81d511d08309</version>
             <scope>provided</scope>
         </dependency>
         <!-- Compile-time only; LuckPerms plugin provides API at runtime -->
         <dependency>
             <groupId>net.luckperms</groupId>
             <artifactId>api</artifactId>
-            <version>5.4</version>
+            <version>5.5</version>
             <scope>provided</scope>
         </dependency>
         <!-- Tests -->
