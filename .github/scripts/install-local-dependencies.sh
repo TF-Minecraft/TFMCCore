@@ -5,8 +5,8 @@ set -euo pipefail
 sha256sum --check .github/dependencies.sha256
 
 mvn -B --no-transfer-progress org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
-    -Dfile="libs/MythicLib-dist-1.7.1.jar" -DgroupId="local" -DartifactId="MythicLib" \
-    -Dversion="1.7.1-tfmc-a3f86a50d382" -Dpackaging=jar -DgeneratePom=true "$@"
+    -Dfile="libs/MythicLib-1.7.1-SNAPSHOT.jar" -DgroupId="local" -DartifactId="MythicLib" \
+    -Dversion="1.7.1-SNAPSHOT-tfmc-225aa7f75d4e" -Dpackaging=jar -DgeneratePom=true "$@"
 mvn -B --no-transfer-progress org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
-    -Dfile="libs/MMOCore-1.13.1.jar" -DgroupId="local" -DartifactId="MMOCore" \
-    -Dversion="1.13.1-tfmc-14850d745437" -Dpackaging=jar -DgeneratePom=true "$@"
+    -Dfile="libs/MMOCore-1.13.1-SNAPSHOT.jar" -DgroupId="local" -DartifactId="MMOCore" \
+    -Dversion="1.13.1-SNAPSHOT-tfmc-81d511d08309" -Dpackaging=jar -DgeneratePom=true "$@"
