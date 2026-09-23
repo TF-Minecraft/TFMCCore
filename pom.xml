@@ -33,10 +33,6 @@
             <version>2.14.0</version>
             <scope>provided</scope>
         </dependency>
-        <!-- Private jar-only deps. Gitignored; CI downloads them from the
-             JustinasLa/tfmc-deps release and verifies libs/SHA256SUMS.
-             Versions must match what the live server runs: compiling against a
-             different build is how NoSuchMethodError gets shipped. -->
         <dependency>
             <groupId>me.plugins</groupId>
             <artifactId>tlibs</artifactId>
@@ -98,6 +94,11 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- Private jar-only deps. CI downloads them from a pinned ServerAssets
+             commit into Git-ignored libs/ and verifies .github/dependencies.sha256
+             before installing them into the local Maven repository.
+             Versions must match what the live server runs: compiling against a
+             different build is how NoSuchMethodError gets shipped. -->
         <dependency>
             <groupId>local</groupId>
             <artifactId>MythicLib</artifactId>
