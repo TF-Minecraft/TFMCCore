@@ -15,8 +15,6 @@ These features give other TF-Minecraft plugins common building blocks while also
 
 TFMC Core works alongside the server's specialist plugins, connecting their systems with the smaller details that make the roleplay world feel consistent.
 
-Inventory scanning is owned by TLibs, character focus by RPCharacters, and sealed letters by BirdMessenger. Core retains compatibility entry points for released scanner/focus consumers and delegates the existing focus/letters admin commands. Existing Core configuration and data files are retained for migration; the new owners use their own configuration folders.
-
 ## Documentation
 
 [Project documentation](https://github.com/TF-Minecraft/Docs/blob/main/projects/TFMCCore/README.md)

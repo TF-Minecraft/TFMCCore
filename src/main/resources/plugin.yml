@@ -5,12 +5,12 @@ version: ${project.version}
 author: Drefvelin
 
 depend: [TLibs]
-softdepend: [VehicleFramework, RPCharacters, AdvancedCrafting, MythicLib, MMOCore, SimpleFactions, LuckPerms, BirdMessenger]
+softdepend: [VehicleFramework, RPCharacters, AdvancedCrafting, MythicLib, MMOCore, SimpleFactions, LuckPerms]
 
 commands:
   tcore:
     description: TFMC Core command
-    usage: /tcore reload [all|config|drops|stations|stats|focus|whistle|letters|lorestones] | /tcore stats <category> [player] | /tcore focus restore <player> | /tcore stones give <lorestone|namestone> [player] [amount]
+    usage: /tcore reload [all|config|drops|stations|stats|whistle|lorestones] | /tcore stats <category> [player] | /tcore stones give <lorestone|namestone> [player] [amount]
     aliases: [tfmc]
   silentpermission:
     description: Set a LuckPerms user permission without console spam
@@ -30,8 +30,3 @@ permissions:
   tfmccore.stones.use:
     description: Use lorestones and namestones on items
     default: true
-
-# Read by the new owners before enable to avoid duplicate legacy handlers.
-feature-owners:
-  focus: RPCharacters
-  letters: BirdMessenger

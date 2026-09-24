@@ -8,11 +8,7 @@ import net.tfminecraft.tlibs.database.SqliteProvider;
 import net.tfminecraft.tfmccore.commands.CoreCommands;
 import net.tfminecraft.tfmccore.commands.CoreTabCompletion;
 import net.tfminecraft.tfmccore.commands.SilentPermissionCommand;
-import net.tfminecraft.rpcharacters.RPCharacters;
-import net.tfminecraft.tfmccore.focus.FocusConfig;
-import net.tfminecraft.tfmccore.focus.FocusService;
 import net.tfminecraft.tfmccore.golem.GolemListener;
-import net.tfminecraft.tfmccore.itemscan.ItemScanService;
 import net.tfminecraft.tfmccore.loader.ConfigLoader;
 import net.tfminecraft.tfmccore.loader.DropLoader;
 import net.tfminecraft.tfmccore.loader.StationLoader;
@@ -67,7 +63,6 @@ public class TFMCCore extends JavaPlugin{
         plugin = this;
         createConfigs();
         loadConfigs();
-        initFocus();
         initWhistle();
         initStones();
         initStats();
@@ -87,9 +82,6 @@ public class TFMCCore extends JavaPlugin{
         if (StatManager.isInitialized()) {
             StatManager.getInstance().shutdown();
         }
-        if (ItemScanService.get() != null) {
-            ItemScanService.get().stop();
-        }
     }
 
     public static TFMCCore getInstance() {
@@ -100,28 +92,12 @@ public class TFMCCore extends JavaPlugin{
         return StatManager.getInstance();
     }
 
-    /** @deprecated Use RPCharacters.getFocusService() directly. */
-    @Deprecated
-    public static FocusService getFocusService() {
-        if (plugin == null || !plugin.getServer().getPluginManager().isPluginEnabled("RPCharacters")) {
-            return null;
-        }
-        try {
-            return FocusService.current();
-        } catch (NoSuchMethodError | NoClassDefFoundError ex) {
-            // The old provider may also lack the types in the compatibility adapter's signature.
-            return null;
-        }
-    }
-
     public boolean loadConfigs() {
         boolean ok = true;
         ok &= configLoader.loadConfig(new File(getDataFolder(), "config.yml"));
         ok &= dropLoader.load(new File(getDataFolder(), "drops.yml"));
         ok &= stationLoader.load(new File(getDataFolder(), "stations.yml"));
-        ok &= reloadFocusConfig();
         ok &= reloadWhistleConfig();
-        ok &= reloadLettersConfig();
         ok &= reloadStonesConfig();
         ok &= reloadStatsConfigs();
         return ok;
@@ -143,47 +119,12 @@ public class TFMCCore extends JavaPlugin{
         return stationLoader.load(new File(getDataFolder(), "stations.yml"));
     }
 
-    public boolean reloadFocusConfig() {
-        var owner = getServer().getPluginManager().getPlugin("RPCharacters");
-        if (!(owner instanceof RPCharacters characters) || !owner.isEnabled()) return false;
-        try {
-            boolean ok = characters.reloadFocusConfig();
-            if (ok) FocusConfig.refresh();
-            return ok;
-        } catch (NoSuchMethodError | NoClassDefFoundError ex) {
-            getLogger().warning("Character focus requires RPCharacters 2.1.0 or newer.");
-            return false;
-        }
-    }
-
     public boolean reloadWhistleConfig() {
         boolean ok = WhistleConfigLoader.load(new File(getDataFolder(), "animal-whistle-config.yml"));
         if (ok && whistleListener != null) {
             whistleListener.invalidateSound();
         }
         return ok;
-    }
-
-    /** Keep the old admin command without making Core depend on the letters implementation. */
-    public boolean reloadLettersConfig() {
-        var owner = getServer().getPluginManager().getPlugin("BirdMessenger");
-        if (owner == null || !owner.isEnabled()) {
-            getLogger().warning("Letters are now owned by BirdMessenger 1.1.0 or newer.");
-            return false;
-        }
-        try {
-            return Boolean.TRUE.equals(owner.getClass().getMethod("reloadLettersConfig").invoke(owner));
-        } catch (ReflectiveOperationException ex) {
-            getLogger().warning("Could not reload BirdMessenger letters: " + ex);
-            return false;
-        }
-    }
-
-    private void initFocus() {
-        if (getFocusService() == null) {
-            getLogger().warning("Character focus is unavailable; install RPCharacters 2.1.0 or newer "
-                    + "and check its focus startup log.");
-        }
     }
 
     private void initWhistle() {
