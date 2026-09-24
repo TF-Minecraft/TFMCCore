@@ -13,6 +13,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockBurnEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.BlockFertilizeEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
@@ -88,6 +89,15 @@ public class PlacedLogTracker implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onGrow(StructureGrowEvent event) {
+        // Bone-meal growth can still be cancelled by the subsequent fertilize event.
+        if (event.isFromBonemeal()) {
+            return;
+        }
+        event.getBlocks().forEach(state -> clear(state.getBlock()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onFertilize(BlockFertilizeEvent event) {
         event.getBlocks().forEach(state -> clear(state.getBlock()));
     }
 

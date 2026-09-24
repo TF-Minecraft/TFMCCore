@@ -19,6 +19,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockBurnEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.BlockFertilizeEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
@@ -102,6 +103,28 @@ class PlacedLogTrackerTest {
         assertTrue(PlacedLogTracker.isPlaced(log));
         when(event.isCancelled()).thenReturn(false);
         dispatch(tracker, event);
+        assertFalse(PlacedLogTracker.isPlaced(log));
+    }
+
+    @Test
+    void bonemealWaitsForSuccessfulFertilizationBeforeClearingMarker() throws Exception {
+        place(log);
+        BlockState state = mock(BlockState.class);
+        when(state.getBlock()).thenReturn(log);
+        StructureGrowEvent growth = mock(StructureGrowEvent.class);
+        when(growth.isFromBonemeal()).thenReturn(true);
+        when(growth.getBlocks()).thenReturn(List.of(state));
+        dispatch(tracker, growth);
+        assertTrue(PlacedLogTracker.isPlaced(log));
+
+        BlockFertilizeEvent fertilization = mock(BlockFertilizeEvent.class);
+        when(fertilization.getBlocks()).thenReturn(List.of(state));
+        when(fertilization.isCancelled()).thenReturn(true);
+        dispatch(tracker, fertilization);
+        assertTrue(PlacedLogTracker.isPlaced(log));
+
+        when(fertilization.isCancelled()).thenReturn(false);
+        dispatch(tracker, fertilization);
         assertFalse(PlacedLogTracker.isPlaced(log));
     }
 
