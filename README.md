@@ -2,14 +2,12 @@
 
 > Shared roleplay features and server systems for TF-Minecraft.
 
-TFMC Core brings together small gameplay features and shared services used across the server. It supports character progression, personalized items, correspondence, and activity records, alongside custom drops and crafting-station interactions.
+TFMC Core brings together small gameplay features and server rules. It supports personalized items and activity records, alongside custom drops and crafting-station interactions.
 
 These features give other TF-Minecraft plugins common building blocks while also adding everyday interactions players can use directly.
 
 ## Features
 
-- **Character focus** — a regenerating mental resource associated with roleplay characters, used by research and magic systems.
-- **Sealed letters** — turn written correspondence into sealed items that visibly change when opened.
 - **Personalized items** — lorestones add descriptive text and namestones change an item's name through an in-game prompt.
 - **Animal whistles** — highlight nearby supported animals to help players locate them.
 - **Shared gameplay rules** — custom drop handling and station interactions connect everyday world actions to server content.

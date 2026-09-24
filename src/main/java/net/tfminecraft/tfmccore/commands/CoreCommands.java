@@ -10,7 +10,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import net.tfminecraft.tfmccore.TFMCCore;
-import net.tfminecraft.tfmccore.focus.FocusService;
 import net.tfminecraft.tfmccore.stones.LorestoneConfig;
 import net.tfminecraft.tfmccore.stones.StoneItems;
 
@@ -35,10 +34,6 @@ public class CoreCommands implements CommandExecutor {
 
         if (args[0].equalsIgnoreCase("stats")) {
             return statsCommand.handle(sender, Arrays.copyOfRange(args, 1, args.length));
-        }
-
-        if (args[0].equalsIgnoreCase("focus")) {
-            return handleFocus(sender, args);
         }
 
         if (args[0].equalsIgnoreCase("stones")) {
@@ -83,24 +78,16 @@ public class CoreCommands implements CommandExecutor {
                 ok = TFMCCore.getInstance().reloadStatsConfigs();
                 label = "stats";
             }
-            case "focus" -> {
-                ok = TFMCCore.getInstance().reloadFocusConfig();
-                label = "focus";
-            }
             case "whistle" -> {
                 ok = TFMCCore.getInstance().reloadWhistleConfig();
                 label = "animal whistle config";
-            }
-            case "letters" -> {
-                ok = TFMCCore.getInstance().reloadLettersConfig();
-                label = "letters config";
             }
             case "lorestones" -> {
                 ok = TFMCCore.getInstance().reloadStonesConfig();
                 label = "lorestones config";
             }
             default -> {
-                sender.sendMessage("Usage: /tcore reload [all|config|drops|stations|stats|focus|whistle|letters|lorestones]");
+                sender.sendMessage("Usage: /tcore reload [all|config|drops|stations|stats|whistle|lorestones]");
                 return true;
             }
         }
@@ -188,31 +175,6 @@ public class CoreCommands implements CommandExecutor {
         return true;
     }
 
-    private boolean handleFocus(CommandSender sender, String[] args) {
-        if (!sender.hasPermission(ADMIN_PERMISSION)) {
-            sender.sendMessage("You do not have permission to use this command.");
-            return true;
-        }
-        if (args.length < 3 || !args[1].equalsIgnoreCase("restore")) {
-            sender.sendMessage("Usage: /tcore focus restore <player>");
-            return true;
-        }
-        Player target = Bukkit.getPlayerExact(args[2]);
-        if (target == null) {
-            sender.sendMessage("Player not found: " + args[2]);
-            return true;
-        }
-        FocusService focus = TFMCCore.getFocusService();
-        if (focus == null || !focus.restore(target)) {
-            sender.sendMessage("Could not restore focus for " + target.getName()
-                    + " (no active character).");
-            return true;
-        }
-        sender.sendMessage("Restored focus for " + target.getName() + " ("
-                + focus.getPoints(target) + "/" + focus.getMax() + ").");
-        return true;
-    }
-
     private static boolean canReload(CommandSender sender) {
         return sender.hasPermission(RELOAD_PERMISSION) || sender.hasPermission(ADMIN_PERMISSION);
     }
@@ -220,10 +182,9 @@ public class CoreCommands implements CommandExecutor {
     private static void sendUsage(CommandSender sender) {
         sender.sendMessage("§e/tcore stats <category> [player]");
         if (canReload(sender)) {
-            sender.sendMessage("§e/tcore reload [all|config|drops|stations|stats|focus|whistle|letters|lorestones]");
+            sender.sendMessage("§e/tcore reload [all|config|drops|stations|stats|whistle|lorestones]");
         }
         if (sender.hasPermission(ADMIN_PERMISSION)) {
-            sender.sendMessage("§e/tcore focus restore <player>");
             sender.sendMessage("§e/tcore stones give <lorestone|namestone> [player] [amount]");
         }
     }

@@ -8,15 +8,7 @@ import net.tfminecraft.tlibs.database.SqliteProvider;
 import net.tfminecraft.tfmccore.commands.CoreCommands;
 import net.tfminecraft.tfmccore.commands.CoreTabCompletion;
 import net.tfminecraft.tfmccore.commands.SilentPermissionCommand;
-import net.tfminecraft.tfmccore.focus.FocusConfigLoader;
-import net.tfminecraft.tfmccore.focus.FocusListener;
-import net.tfminecraft.tfmccore.focus.FocusService;
-import net.tfminecraft.tfmccore.focus.FocusStore;
-import net.tfminecraft.tfmccore.focus.RpCharactersBridge;
 import net.tfminecraft.tfmccore.golem.GolemListener;
-import net.tfminecraft.tfmccore.itemscan.ItemScanService;
-import net.tfminecraft.tfmccore.letters.LetterConfigLoader;
-import net.tfminecraft.tfmccore.letters.LetterListener;
 import net.tfminecraft.tfmccore.loader.ConfigLoader;
 import net.tfminecraft.tfmccore.loader.DropLoader;
 import net.tfminecraft.tfmccore.loader.StationLoader;
@@ -62,9 +54,7 @@ public class TFMCCore extends JavaPlugin{
 
     private final CoreCommands commands = new CoreCommands();
     private final CoreTabCompletion tabCompletion = new CoreTabCompletion();
-    private FocusService focusService;
     private WhistleListener whistleListener;
-    private LetterListener letterListener;
     private StoneListener stoneListener;
     private StoneItems stoneItems;
 
@@ -73,13 +63,10 @@ public class TFMCCore extends JavaPlugin{
         plugin = this;
         createConfigs();
         loadConfigs();
-        initFocus();
         initWhistle();
-        initLetters();
         initStones();
         initStats();
         registerListeners();
-        ItemScanService.start(this);
         getCommand(commands.cmd1).setExecutor(commands);
         getCommand(commands.cmd1).setTabCompleter(tabCompletion);
         SilentPermissionCommand silentPermission = new SilentPermissionCommand();
@@ -92,14 +79,8 @@ public class TFMCCore extends JavaPlugin{
         if (stoneListener != null) {
             stoneListener.refundAll();
         }
-        if (focusService != null) {
-            focusService.shutdown();
-        }
         if (StatManager.isInitialized()) {
             StatManager.getInstance().shutdown();
-        }
-        if (ItemScanService.get() != null) {
-            ItemScanService.get().stop();
         }
     }
 
@@ -111,18 +92,12 @@ public class TFMCCore extends JavaPlugin{
         return StatManager.getInstance();
     }
 
-    public static FocusService getFocusService() {
-        return plugin == null ? null : plugin.focusService;
-    }
-
     public boolean loadConfigs() {
         boolean ok = true;
         ok &= configLoader.loadConfig(new File(getDataFolder(), "config.yml"));
         ok &= dropLoader.load(new File(getDataFolder(), "drops.yml"));
         ok &= stationLoader.load(new File(getDataFolder(), "stations.yml"));
-        ok &= reloadFocusConfig();
         ok &= reloadWhistleConfig();
-        ok &= reloadLettersConfig();
         ok &= reloadStonesConfig();
         ok &= reloadStatsConfigs();
         return ok;
@@ -144,32 +119,12 @@ public class TFMCCore extends JavaPlugin{
         return stationLoader.load(new File(getDataFolder(), "stations.yml"));
     }
 
-    public boolean reloadFocusConfig() {
-        boolean ok = FocusConfigLoader.load(new File(getDataFolder(), "focus.yml"));
-        if (ok && focusService != null) {
-            focusService.restartRegen();
-        }
-        return ok;
-    }
-
     public boolean reloadWhistleConfig() {
         boolean ok = WhistleConfigLoader.load(new File(getDataFolder(), "animal-whistle-config.yml"));
         if (ok && whistleListener != null) {
             whistleListener.invalidateSound();
         }
         return ok;
-    }
-
-    public boolean reloadLettersConfig() {
-        return LetterConfigLoader.load(new File(getDataFolder(), "letters-config.yml"));
-    }
-
-    private void initFocus() {
-        File folder = new File(getDataFolder(), "data/focus");
-        folder.mkdirs();
-        focusService = new FocusService(new FocusStore(folder));
-        getServer().getPluginManager().registerEvents(new FocusListener(focusService), this);
-        focusService.start();
     }
 
     private void initWhistle() {
@@ -189,11 +144,6 @@ public class TFMCCore extends JavaPlugin{
 
     public static StoneItems getStoneItems() {
         return plugin == null ? null : plugin.stoneItems;
-    }
-
-    private void initLetters() {
-        letterListener = new LetterListener();
-        getServer().getPluginManager().registerEvents(letterListener, this);
     }
 
     public boolean reloadStatsConfigs() {
@@ -254,9 +204,7 @@ public class TFMCCore extends JavaPlugin{
                 "advancedcraftingstats.yml",
                 "skillsstats.yml",
                 "factionsstats.yml",
-                "focus.yml",
                 "animal-whistle-config.yml",
-                "letters-config.yml",
                 "lorestones-config.yml"
         };
 
