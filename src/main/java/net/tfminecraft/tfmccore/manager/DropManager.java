@@ -2,6 +2,7 @@ package net.tfminecraft.tfmccore.manager;
 
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.type.Leaves;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -20,6 +21,14 @@ public class DropManager implements Listener{
     public void blockBreak(BlockBreakEvent e) {
         Player p = e.getPlayer();
         Block b = e.getBlock();
+        // Placed leaves are persistent; world- and sapling-grown leaves are not.
+        // Check before suppressing vanilla drops or scheduling a custom drop roll.
+        if (b.getBlockData() instanceof Leaves leaves && leaves.isPersistent()) {
+            return;
+        }
+        if (PlacedLogTracker.isPlaced(b)) {
+            return;
+        }
         ItemStack tool = p.getInventory().getItemInMainHand();
         Material original = b.getType();
 
