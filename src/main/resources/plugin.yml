@@ -30,3 +30,7 @@ permissions:
   tfmccore.stones.use:
     description: Use lorestones and namestones on items
     default: true
+
+# Read by the new owners before enable to avoid duplicate legacy handlers.
+feature-owners:
+  focus: RPCharacters

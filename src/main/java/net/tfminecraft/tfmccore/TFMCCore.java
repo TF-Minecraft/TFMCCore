@@ -8,11 +8,9 @@ import net.tfminecraft.tlibs.database.SqliteProvider;
 import net.tfminecraft.tfmccore.commands.CoreCommands;
 import net.tfminecraft.tfmccore.commands.CoreTabCompletion;
 import net.tfminecraft.tfmccore.commands.SilentPermissionCommand;
-import net.tfminecraft.tfmccore.focus.FocusConfigLoader;
-import net.tfminecraft.tfmccore.focus.FocusListener;
+import net.tfminecraft.rpcharacters.RPCharacters;
+import net.tfminecraft.tfmccore.focus.FocusConfig;
 import net.tfminecraft.tfmccore.focus.FocusService;
-import net.tfminecraft.tfmccore.focus.FocusStore;
-import net.tfminecraft.tfmccore.focus.RpCharactersBridge;
 import net.tfminecraft.tfmccore.golem.GolemListener;
 import net.tfminecraft.tfmccore.itemscan.ItemScanService;
 import net.tfminecraft.tfmccore.letters.LetterConfigLoader;
@@ -91,9 +89,6 @@ public class TFMCCore extends JavaPlugin{
         if (stoneListener != null) {
             stoneListener.refundAll();
         }
-        if (focusService != null) {
-            focusService.shutdown();
-        }
         if (StatManager.isInitialized()) {
             StatManager.getInstance().shutdown();
         }
@@ -110,8 +105,12 @@ public class TFMCCore extends JavaPlugin{
         return StatManager.getInstance();
     }
 
+    /** @deprecated Use RPCharacters.getFocusService() directly. */
+    @Deprecated
     public static FocusService getFocusService() {
-        return plugin == null ? null : plugin.focusService;
+        if (plugin == null || plugin.focusService == null) return null;
+        FocusConfig.refresh();
+        return plugin.focusService;
     }
 
     public boolean loadConfigs() {
@@ -144,10 +143,12 @@ public class TFMCCore extends JavaPlugin{
     }
 
     public boolean reloadFocusConfig() {
-        boolean ok = FocusConfigLoader.load(new File(getDataFolder(), "focus.yml"));
-        if (ok && focusService != null) {
-            focusService.restartRegen();
+        var owner = getServer().getPluginManager().getPlugin("RPCharacters");
+        if (!(owner instanceof RPCharacters characters) || !owner.isEnabled()) {
+            return false;
         }
+        boolean ok = characters.reloadFocusConfig();
+        if (ok) FocusConfig.refresh();
         return ok;
     }
 
@@ -164,11 +165,17 @@ public class TFMCCore extends JavaPlugin{
     }
 
     private void initFocus() {
-        File folder = new File(getDataFolder(), "data/focus");
-        folder.mkdirs();
-        focusService = new FocusService(new FocusStore(folder));
-        getServer().getPluginManager().registerEvents(new FocusListener(focusService), this);
-        focusService.start();
+        if (!getServer().getPluginManager().isPluginEnabled("RPCharacters")) {
+            getLogger().warning("Character focus requires RPCharacters 2.1.0 or newer.");
+            return;
+        }
+        var service = RPCharacters.getFocusService();
+        if (service == null) {
+            getLogger().warning("RPCharacters focus is unavailable; check its startup log.");
+            return;
+        }
+        focusService = new FocusService(service);
+        FocusConfig.refresh();
     }
 
     private void initWhistle() {
@@ -253,7 +260,6 @@ public class TFMCCore extends JavaPlugin{
                 "advancedcraftingstats.yml",
                 "skillsstats.yml",
                 "factionsstats.yml",
-                "focus.yml",
                 "animal-whistle-config.yml",
                 "letters-config.yml",
                 "lorestones-config.yml"

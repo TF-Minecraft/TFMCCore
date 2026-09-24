@@ -12,7 +12,7 @@
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <advancedcrafting.version>2.0.0</advancedcrafting.version>
-        <rpcharacters.version>2.0.1</rpcharacters.version>
+        <rpcharacters.version>2.1.0</rpcharacters.version>
         <simplefactions.version>3.0.1</simplefactions.version>
         <tlibs.version>2.1.0</tlibs.version>
         <vehicleframework.version>2.0.1</vehicleframework.version>
