@@ -58,7 +58,6 @@ public class TFMCCore extends JavaPlugin{
 
     private final CoreCommands commands = new CoreCommands();
     private final CoreTabCompletion tabCompletion = new CoreTabCompletion();
-    private FocusService focusService;
     private WhistleListener whistleListener;
     private StoneListener stoneListener;
     private StoneItems stoneItems;
@@ -104,9 +103,15 @@ public class TFMCCore extends JavaPlugin{
     /** @deprecated Use RPCharacters.getFocusService() directly. */
     @Deprecated
     public static FocusService getFocusService() {
-        if (plugin == null || plugin.focusService == null) return null;
-        FocusConfig.refresh();
-        return plugin.focusService;
+        if (plugin == null || !plugin.getServer().getPluginManager().isPluginEnabled("RPCharacters")) {
+            return null;
+        }
+        try {
+            return FocusService.current();
+        } catch (NoSuchMethodError | NoClassDefFoundError ex) {
+            // The old provider may also lack the types in the compatibility adapter's signature.
+            return null;
+        }
     }
 
     public boolean loadConfigs() {
@@ -140,12 +145,15 @@ public class TFMCCore extends JavaPlugin{
 
     public boolean reloadFocusConfig() {
         var owner = getServer().getPluginManager().getPlugin("RPCharacters");
-        if (!(owner instanceof RPCharacters characters) || !owner.isEnabled()) {
+        if (!(owner instanceof RPCharacters characters) || !owner.isEnabled()) return false;
+        try {
+            boolean ok = characters.reloadFocusConfig();
+            if (ok) FocusConfig.refresh();
+            return ok;
+        } catch (NoSuchMethodError | NoClassDefFoundError ex) {
+            getLogger().warning("Character focus requires RPCharacters 2.1.0 or newer.");
             return false;
         }
-        boolean ok = characters.reloadFocusConfig();
-        if (ok) FocusConfig.refresh();
-        return ok;
     }
 
     public boolean reloadWhistleConfig() {
@@ -172,17 +180,10 @@ public class TFMCCore extends JavaPlugin{
     }
 
     private void initFocus() {
-        if (!getServer().getPluginManager().isPluginEnabled("RPCharacters")) {
-            getLogger().warning("Character focus requires RPCharacters 2.1.0 or newer.");
-            return;
+        if (getFocusService() == null) {
+            getLogger().warning("Character focus is unavailable; install RPCharacters 2.1.0 or newer "
+                    + "and check its focus startup log.");
         }
-        var service = RPCharacters.getFocusService();
-        if (service == null) {
-            getLogger().warning("RPCharacters focus is unavailable; check its startup log.");
-            return;
-        }
-        focusService = new FocusService(service);
-        FocusConfig.refresh();
     }
 
     private void initWhistle() {

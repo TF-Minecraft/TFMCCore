@@ -37,4 +37,16 @@ class FocusCompatibilityTest {
             FocusConfig.refresh();
         }
     }
+    @Test
+    void legacyEntryPointRecoversWhenProviderBecomesAvailable() {
+        var state = new java.util.concurrent.atomic.AtomicReference<net.tfminecraft.rpcharacters.focus.FocusService>();
+        assertNull(FocusService.resolve(state::get));
+        var provider = mock(net.tfminecraft.rpcharacters.focus.FocusService.class);
+        state.set(provider);
+        var recovered = FocusService.resolve(state::get);
+        assertNotNull(recovered);
+        recovered.getMax();
+        verify(provider).getMax();
+        assertNull(FocusService.resolve(() -> { throw new NoSuchMethodError("old RPCharacters"); }));
+    }
 }
