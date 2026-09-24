@@ -79,7 +79,6 @@ public class TFMCCore extends JavaPlugin{
         initStones();
         initStats();
         registerListeners();
-        ItemScanService.start(this);
         getCommand(commands.cmd1).setExecutor(commands);
         getCommand(commands.cmd1).setTabCompleter(tabCompletion);
         SilentPermissionCommand silentPermission = new SilentPermissionCommand();
