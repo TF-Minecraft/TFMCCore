@@ -13,8 +13,6 @@ import net.tfminecraft.tfmccore.focus.FocusConfig;
 import net.tfminecraft.tfmccore.focus.FocusService;
 import net.tfminecraft.tfmccore.golem.GolemListener;
 import net.tfminecraft.tfmccore.itemscan.ItemScanService;
-import net.tfminecraft.tfmccore.letters.LetterConfigLoader;
-import net.tfminecraft.tfmccore.letters.LetterListener;
 import net.tfminecraft.tfmccore.loader.ConfigLoader;
 import net.tfminecraft.tfmccore.loader.DropLoader;
 import net.tfminecraft.tfmccore.loader.StationLoader;
@@ -62,7 +60,6 @@ public class TFMCCore extends JavaPlugin{
     private final CoreTabCompletion tabCompletion = new CoreTabCompletion();
     private FocusService focusService;
     private WhistleListener whistleListener;
-    private LetterListener letterListener;
     private StoneListener stoneListener;
     private StoneItems stoneItems;
 
@@ -73,7 +70,6 @@ public class TFMCCore extends JavaPlugin{
         loadConfigs();
         initFocus();
         initWhistle();
-        initLetters();
         initStones();
         initStats();
         registerListeners();
@@ -160,8 +156,19 @@ public class TFMCCore extends JavaPlugin{
         return ok;
     }
 
+    /** Keep the old admin command without making Core depend on the letters implementation. */
     public boolean reloadLettersConfig() {
-        return LetterConfigLoader.load(new File(getDataFolder(), "letters-config.yml"));
+        var owner = getServer().getPluginManager().getPlugin("BirdMessenger");
+        if (owner == null || !owner.isEnabled()) {
+            getLogger().warning("Letters are now owned by BirdMessenger 1.1.0 or newer.");
+            return false;
+        }
+        try {
+            return Boolean.TRUE.equals(owner.getClass().getMethod("reloadLettersConfig").invoke(owner));
+        } catch (ReflectiveOperationException ex) {
+            getLogger().warning("Could not reload BirdMessenger letters: " + ex);
+            return false;
+        }
     }
 
     private void initFocus() {
@@ -195,11 +202,6 @@ public class TFMCCore extends JavaPlugin{
 
     public static StoneItems getStoneItems() {
         return plugin == null ? null : plugin.stoneItems;
-    }
-
-    private void initLetters() {
-        letterListener = new LetterListener();
-        getServer().getPluginManager().registerEvents(letterListener, this);
     }
 
     public boolean reloadStatsConfigs() {
@@ -261,7 +263,6 @@ public class TFMCCore extends JavaPlugin{
                 "skillsstats.yml",
                 "factionsstats.yml",
                 "animal-whistle-config.yml",
-                "letters-config.yml",
                 "lorestones-config.yml"
         };
 
