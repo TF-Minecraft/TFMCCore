@@ -59,9 +59,26 @@ class DropManagerTest {
         exerciseBreak(material, false);
     }
 
+    @ParameterizedTest
+    @EnumSource(value = Material.class, names = ".*(_LOG|_WOOD|_HYPHAE|CRIMSON_STEM|WARPED_STEM)",
+            mode = EnumSource.Mode.MATCH_ALL)
+    void placedLogsNeverScheduleCustomDropsOrSuppressVanilla(Material material) {
+        exerciseBreak(material, true);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Material.class, names = ".*(_LOG|_WOOD|_HYPHAE|CRIMSON_STEM|WARPED_STEM)",
+            mode = EnumSource.Mode.MATCH_ALL)
+    void treeGrownLogsStillProduceCustomDrops(Material material) {
+        exerciseBreak(material, false);
+    }
+
     private void exerciseBreak(Material material, boolean persistent) {
-        Block block = mock(Block.class);
+        Block block = new LogTestWorld().block(0, 80, 0);
         when(block.getType()).thenReturn(material);
+        if (persistent && !material.name().endsWith("_LEAVES")) {
+            new PlacedLogTracker().onPlace(PlacedLogTrackerTest.placement(block));
+        }
         if (material.name().endsWith("_LEAVES")) {
             Leaves leaves = mock(Leaves.class);
             when(leaves.isPersistent()).thenReturn(persistent);

@@ -26,6 +26,9 @@ public class DropManager implements Listener{
         if (b.getBlockData() instanceof Leaves leaves && leaves.isPersistent()) {
             return;
         }
+        if (PlacedLogTracker.isPlaced(b)) {
+            return;
+        }
         ItemStack tool = p.getInventory().getItemInMainHand();
         Material original = b.getType();
 

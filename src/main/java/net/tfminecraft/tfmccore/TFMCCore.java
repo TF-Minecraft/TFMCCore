@@ -22,6 +22,7 @@ import net.tfminecraft.tfmccore.loader.DropLoader;
 import net.tfminecraft.tfmccore.loader.StationLoader;
 import net.tfminecraft.tfmccore.manager.CoreManager;
 import net.tfminecraft.tfmccore.manager.DropManager;
+import net.tfminecraft.tfmccore.manager.PlacedLogTracker;
 import net.tfminecraft.tfmccore.manager.StationManager;
 import net.tfminecraft.tfmccore.stats.StatCategoryRegistry;
 import net.tfminecraft.tfmccore.stats.StatManager;
@@ -236,6 +237,7 @@ public class TFMCCore extends JavaPlugin{
 
     public void registerListeners() {
         getServer().getPluginManager().registerEvents(dropManager, this);
+        getServer().getPluginManager().registerEvents(new PlacedLogTracker(), this);
         getServer().getPluginManager().registerEvents(stationManager, this);
         getServer().getPluginManager().registerEvents(coreManager, this);
         getServer().getPluginManager().registerEvents(new GolemListener(), this);
