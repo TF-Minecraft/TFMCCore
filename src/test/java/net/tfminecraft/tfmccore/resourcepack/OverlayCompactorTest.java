@@ -127,11 +127,21 @@ class OverlayCompactorTest {
                 JsonParser.parseString(METADATA).getAsJsonObject(), files.keySet()));
     }
 
-    @Test void refusesMissingOverlayAndUnknownMetadata() {
-        var files = files();
-        files.keySet().removeIf(p -> p.startsWith("ia_overlay_1_20_5_plus/"));
-        assertThrows(IllegalArgumentException.class, () -> OverlayCompactor.plan(
-                JsonParser.parseString(METADATA).getAsJsonObject(), files.keySet()));
+    @Test void emptyOptionalOverlayStillAllowsCompactionWithoutChangingResources() {
+        var before = files();
+        before.keySet().removeIf(p -> p.startsWith("ia_overlay_1_20_5_plus/"));
+        var event = event(before);
+        new ResourcePackListener(Logger.getAnonymousLogger()).compactOverlays(event);
+        var after = texts(event);
+        assertNotEquals(before.get("pack.mcmeta"), after.get("pack.mcmeta"));
+        for (int version = 0; version <= 100; version++) {
+            assertEquals(effective(before, version), effective(after, version), "format " + version);
+        }
+        var metadata = JsonParser.parseString(METADATA).getAsJsonObject();
+        assertTrue(OverlayCompactor.plan(metadata, Set.of("pack.mcmeta")).isEmpty());
+    }
+
+    @Test void refusesUnknownMetadata() {
         var metadata = JsonParser.parseString(METADATA).getAsJsonObject();
         metadata.getAsJsonObject("overlays").getAsJsonArray("entries").get(0).getAsJsonObject()
                 .addProperty("future_setting", true);

@@ -74,9 +74,8 @@ public final class OverlayCompactor {
                     if (modern.max() < 75) removals.add(path);
                 }
             }
-            if (files.isEmpty()) {
-                throw new IllegalArgumentException("Empty or missing overlay: " + directory);
-            }
+            // Optional ItemsAdder features can leave an empty declared overlay.
+            // It contributes no resources; the later finalizer prunes empty layers.
             overlays.add(new Overlay(directory, legacy, modern, files));
         }
         List<Integer> boundaries = new ArrayList<>(cuts);
@@ -103,7 +102,7 @@ public final class OverlayCompactor {
             }
             segments.add(new Segment(min, max, effective));
         }
-        if (!overlaps) return Optional.empty();
+        if (!overlaps || segments.isEmpty()) return Optional.empty();
         JsonArray compact = new JsonArray();
         before.forEach(compact::add);
         Map<String, String> copies = new TreeMap<>();
