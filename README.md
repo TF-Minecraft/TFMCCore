@@ -28,3 +28,6 @@ Copyright (c) 2026 TF-Minecraft contributors.
 TF-Minecraft-authored material in this repository is licensed under the
 [Artistic License 2.0](LICENSE). Third-party dependencies and bundled material
 retain their own licenses.
+
+Opt-in multipart resource-pack generation, delivery, deployment, and rollback are
+covered in [RESOURCE_PACK.md](RESOURCE_PACK.md).
