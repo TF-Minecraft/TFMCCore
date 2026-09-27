@@ -24,6 +24,8 @@ public class ConfigLoader {
         Cache.blockedConsume.clear();
         Cache.blockedCrafts.clear();
 
+        Cache.compactResourcePackOverlays = config.getBoolean("resource-pack.compact-overlays", true);
+
         Cache.allowBoneMeal = config.getBoolean("bone-meal", true);
         Cache.limitShields = config.getBoolean("limit-shields", false);
         Cache.allowBrewing = config.getBoolean("allow-brewing", true);
