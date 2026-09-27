@@ -88,6 +88,12 @@ public class TFMCCore extends JavaPlugin{
                     if (!iaConfig.getBoolean("resource-pack.allow_other_plugins_resourcepacks", false)) {
                         throw new IllegalStateException("Multipart delivery requires ItemsAdder allow_other_plugins_resourcepacks: true");
                     }
+                    // IA 4.0.18 locks once per ACCEPTED callback but unlocks only
+                    // once per player. Multiple packs leave equipment hidden even
+                    // after success (and duplicate entries can survive reconnects).
+                    if (iaConfig.getBoolean("resource-pack.protect-player.lock-player", true)) {
+                        throw new IllegalStateException("Multipart delivery requires ItemsAdder resource-pack.protect-player.lock-player: false; restart to clear existing equipment locks");
+                    }
                     try {
                         multipartPacks = new net.tfminecraft.tfmccore.resourcepack.MultipartPackService(this,
                                 itemsAdder.getDataFolder().toPath(), new java.net.InetSocketAddress(multipart.getInt("resource-pack.multipart.port", 9981)),

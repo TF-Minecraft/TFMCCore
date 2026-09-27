@@ -31,8 +31,18 @@ restart; `/tcore reload config` does not restart the HTTP listener.
 ## Dev activation
 
 1. Install the reviewed TFMCCore build on Dev. Preserve the current jar and configs.
-2. Set ItemsAdder `resource-pack.allow_other_plugins_resourcepacks: true`. Keep
-   ItemsAdder's current self-host enabled; it serves the fallback archive.
+2. Set ItemsAdder `resource-pack.allow_other_plugins_resourcepacks: true` and
+   `resource-pack.protect-player.lock-player: false`. Keep ItemsAdder's current
+   self-host enabled; it serves the fallback archive. TFMCCore rejects multipart
+   activation if either setting is incompatible.
+
+   ItemsAdder 4.0.18 applies its equipment-hiding loading effect once for each
+   accepted pack, but removes it only once per player. With three packs, leftover
+   entries repeatedly hide the selected hotbar/held item after loading finishes.
+   Disconnecting removes only one entry, so reconnecting may not clear it.
+   Disabling `lock-player` avoids that visual/movement-lock effect; the separate
+   command, teleport, and movement cancellation settings remain unchanged.
+   Restart Dev after changing this setting to clear existing duplicate entries.
 3. Configure TFMCCore:
 
    ```yaml
@@ -65,7 +75,9 @@ original ItemsAdder archive is never overwritten.
 
 Restore the two ConditionalEvents `iatexture` actions and their original messages,
 set multipart `enabled: false`, restore ItemsAdder's previous
-`allow_other_plugins_resourcepacks` setting, and restart the affected server.
+`allow_other_plugins_resourcepacks` and `protect-player.lock-player` settings,
+and restart the affected server. Clients should disconnect fully and reconnect:
+`iatexture` alone adds the original ZIP alongside any multipart packs still active.
 The original archive and its existing ItemsAdder host are still present. Restore
 the prior released plugin jar if rolling back the whole feature. Do not overwrite
 files that another deployment has changed since the captured baseline.
