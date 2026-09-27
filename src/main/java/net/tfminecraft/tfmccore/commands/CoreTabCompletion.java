@@ -26,6 +26,7 @@ public final class CoreTabCompletion implements TabCompleter {
         if (args.length == 1) {
             List<String> completions = new ArrayList<>();
             completions.add("stats");
+            completions.add("pack");
             if (canReload(sender)) {
                 completions.add("reload");
             }

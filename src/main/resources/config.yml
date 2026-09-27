@@ -2,6 +2,12 @@
 # Requires verified ItemsAdder 4.0.18; newer atlas-generation layers remain intact.
 resource-pack:
   compact-overlays: true
+  # Opt-in. Requires ItemsAdder allow_other_plugins_resourcepacks: true.
+  # Restart to change these settings; keep the existing ItemsAdder host for fallback.
+  multipart:
+    enabled: false
+    port: 9981
+    public-url: "http://127.0.0.1:9981/"
 
 bone-meal: false
 allow-brewing: false
