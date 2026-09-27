@@ -32,6 +32,17 @@ public class CoreCommands implements CommandExecutor {
             return true;
         }
 
+        if (args[0].equalsIgnoreCase("pack")) {
+            if (args.length > 2 || (args.length == 2 && !sender.hasPermission(ADMIN_PERMISSION))) {
+                sender.sendMessage("Usage: /tcore pack (admins may specify a player)");
+                return true;
+            }
+            Player target = args.length == 2 ? Bukkit.getPlayerExact(args[1]) : sender instanceof Player player ? player : null;
+            if (target == null) sender.sendMessage("Specify an online player: /tcore pack <player>");
+            else TFMCCore.getInstance().sendResourcePack(target);
+            return true;
+        }
+
         if (args[0].equalsIgnoreCase("stats")) {
             return statsCommand.handle(sender, Arrays.copyOfRange(args, 1, args.length));
         }

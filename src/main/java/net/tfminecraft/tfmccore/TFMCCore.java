@@ -57,6 +57,7 @@ public class TFMCCore extends JavaPlugin{
     private WhistleListener whistleListener;
     private StoneListener stoneListener;
     private StoneItems stoneItems;
+    private net.tfminecraft.tfmccore.resourcepack.MultipartPackService multipartPacks;
 
     @Override
     public void onEnable() {
@@ -78,8 +79,32 @@ public class TFMCCore extends JavaPlugin{
                         .getMethod("getEntries");
                 getServer().getPluginManager().registerEvents(
                         new net.tfminecraft.tfmccore.resourcepack.ResourcePackListener(getLogger()), this);
+                var multipart = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
+                        new File(getDataFolder(), "config.yml"));
+                if (multipart.getBoolean("resource-pack.multipart.enabled", false)) {
+                    var itemsAdder = getServer().getPluginManager().getPlugin("ItemsAdder");
+                    var iaConfig = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
+                            new File(itemsAdder.getDataFolder(), "config.yml"));
+                    if (!iaConfig.getBoolean("resource-pack.allow_other_plugins_resourcepacks", false)) {
+                        throw new IllegalStateException("Multipart delivery requires ItemsAdder allow_other_plugins_resourcepacks: true");
+                    }
+                    // IA 4.0.18 locks once per ACCEPTED callback but unlocks only
+                    // once per player. Multiple packs leave equipment hidden even
+                    // after success (and duplicate entries can survive reconnects).
+                    if (iaConfig.getBoolean("resource-pack.protect-player.lock-player", true)) {
+                        throw new IllegalStateException("Multipart delivery requires ItemsAdder resource-pack.protect-player.lock-player: false; restart to clear existing equipment locks");
+                    }
+                    try {
+                        multipartPacks = new net.tfminecraft.tfmccore.resourcepack.MultipartPackService(this,
+                                itemsAdder.getDataFolder().toPath(), new java.net.InetSocketAddress(multipart.getInt("resource-pack.multipart.port", 9981)),
+                                multipart.getString("resource-pack.multipart.public-url", ""));
+                        getServer().getPluginManager().registerEvents(multipartPacks, this);
+                    } catch (java.io.IOException | IllegalArgumentException error) {
+                        getLogger().warning("Multipart delivery disabled; using ItemsAdder: " + error.getMessage());
+                    }
+                }
             } catch (ReflectiveOperationException | LinkageError | IllegalStateException unavailable) {
-                getLogger().warning("ItemsAdder build integration unverified; overlay compaction disabled.");
+                getLogger().warning("ItemsAdder integration unavailable: " + unavailable.getMessage());
             }
         }
         getCommand(commands.cmd1).setExecutor(commands);
@@ -91,12 +116,20 @@ public class TFMCCore extends JavaPlugin{
 
     @Override
     public void onDisable() {
+        if (multipartPacks != null) multipartPacks.close();
         if (stoneListener != null) {
             stoneListener.refundAll();
         }
         if (StatManager.isInitialized()) {
             StatManager.getInstance().shutdown();
         }
+    }
+
+    public void sendResourcePack(org.bukkit.entity.Player player) {
+        if (multipartPacks != null) multipartPacks.send(player);
+        else if (getServer().getPluginManager().isPluginEnabled("ItemsAdder"))
+            dev.lone.itemsadder.api.ItemsAdder.applyResourcepack(player);
+        else player.sendMessage("TFMC resource pack is currently unavailable.");
     }
 
     public static TFMCCore getInstance() {
