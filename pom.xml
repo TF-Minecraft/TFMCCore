@@ -111,6 +111,12 @@
             <version>1.13.1-SNAPSHOT-tfmc-81d511d08309</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>local</groupId>
+            <artifactId>ItemsAdder</artifactId>
+            <version>4.0.18-tfmc-5a01b37bd744</version>
+            <scope>provided</scope>
+        </dependency>
         <!-- Compile-time only; LuckPerms plugin provides API at runtime -->
         <dependency>
             <groupId>net.luckperms</groupId>

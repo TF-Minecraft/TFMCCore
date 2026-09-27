@@ -6,6 +6,8 @@ import java.util.List;
 import org.bukkit.Material;
 
 public class Cache {
+    public static volatile boolean compactResourcePackOverlays = true;
+
     public static boolean allowBoneMeal;
     public static boolean allowBrewing;
     public static boolean allowEnchanting;

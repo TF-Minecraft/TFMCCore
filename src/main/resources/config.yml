@@ -1,3 +1,8 @@
+# Reduce client ZIP scans on formats 32-74 (1.20.5-1.21.10); applies on the next /iazip.
+# Requires verified ItemsAdder 4.0.18; newer atlas-generation layers remain intact.
+resource-pack:
+  compact-overlays: true
+
 bone-meal: false
 allow-brewing: false
 allow-enchanting: false

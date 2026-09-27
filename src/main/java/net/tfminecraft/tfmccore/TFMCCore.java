@@ -67,6 +67,21 @@ public class TFMCCore extends JavaPlugin{
         initStones();
         initStats();
         registerListeners();
+        if (getServer().getPluginManager().isPluginEnabled("ItemsAdder")) {
+            try {
+                // The event precedes ItemsAdder's modern-atlas finalizer. Revalidate
+                // its ordering before enabling this transformation on a new version.
+                if (!getServer().getPluginManager().getPlugin("ItemsAdder").getDescription().getVersion().equals("4.0.18")) {
+                    throw new IllegalStateException("Overlay compaction requires verified ItemsAdder 4.0.18");
+                }
+                Class.forName("dev.lone.itemsadder.api.Events.ItemsAdderPackCompressedEvent")
+                        .getMethod("getEntries");
+                getServer().getPluginManager().registerEvents(
+                        new net.tfminecraft.tfmccore.resourcepack.ResourcePackListener(getLogger()), this);
+            } catch (ReflectiveOperationException | LinkageError | IllegalStateException unavailable) {
+                getLogger().warning("ItemsAdder build integration unverified; overlay compaction disabled.");
+            }
+        }
         getCommand(commands.cmd1).setExecutor(commands);
         getCommand(commands.cmd1).setTabCompleter(tabCompletion);
         SilentPermissionCommand silentPermission = new SilentPermissionCommand();
