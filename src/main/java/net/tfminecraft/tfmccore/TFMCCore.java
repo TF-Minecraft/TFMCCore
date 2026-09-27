@@ -93,7 +93,7 @@ public class TFMCCore extends JavaPlugin{
                                 itemsAdder.getDataFolder().toPath(), new java.net.InetSocketAddress(multipart.getInt("resource-pack.multipart.port", 9981)),
                                 multipart.getString("resource-pack.multipart.public-url", ""));
                         getServer().getPluginManager().registerEvents(multipartPacks, this);
-                    } catch (java.io.IOException error) {
+                    } catch (java.io.IOException | IllegalArgumentException error) {
                         getLogger().warning("Multipart delivery disabled; using ItemsAdder: " + error.getMessage());
                     }
                 }

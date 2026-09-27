@@ -33,7 +33,8 @@ public final class MultipartPackService implements Listener, AutoCloseable {
     private volatile PackPublisher.Bundle current;
     private volatile boolean closed;
     private final java.util.concurrent.atomic.AtomicLong buildEpoch = new java.util.concurrent.atomic.AtomicLong();
-    private Stamp observed;
+    private Stamp observed, failedAttempt;
+    private long retryAfter;
     private String lastError;
 
     public MultipartPackService(JavaPlugin plugin, Path itemsAdder, InetSocketAddress address, String url) throws IOException {
@@ -68,10 +69,12 @@ public final class MultipartPackService implements Listener, AutoCloseable {
 
     private void refresh() {
         if (closed) return;
+        Stamp before = null;
         try {
             long epoch = buildEpoch.get();
-            Stamp before = stamp();
+            before = stamp();
             if (before.equals(observed)) return;
+            if (before.equals(failedAttempt) && System.nanoTime() < retryAfter) return;
             current = null;
             String expected = YamlConfiguration.loadConfiguration(cache.toFile()).getString("last_hash", "");
             PackPublisher.Bundle bundle = publisher.publish(source, expected);
@@ -80,9 +83,12 @@ public final class MultipartPackService implements Listener, AutoCloseable {
             observed = before;
             current = bundle;
             lastError = null;
+            failedAttempt = null;
             plugin.getLogger().info("Published three resource-pack parts for " + bundle.sourceHash());
         } catch (IOException | RuntimeException error) {
             current = null;
+            failedAttempt = before;
+            retryAfter = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
             String message = error.getMessage();
             if (!Objects.equals(message, lastError)) {
                 plugin.getLogger().warning("Multipart pack unavailable; single-pack fallback remains active: " + message);
