@@ -28,6 +28,21 @@ without `/iazip`. It detects later rebuilds automatically. It does not itself
 rebuild ItemsAdder's content on restart. Configuration changes below require a
 restart; `/tcore reload config` does not restart the HTTP listener.
 
+After `/iazip`, ItemsAdder's automatic send is replaced with the matching three
+parts once publication completes. No `/tfmc pack` or reconnect is needed.
+ItemsAdder still selects the recipients, so `--apply-to self` and `--apply-to none`
+retain their meaning. `/iatexture` uses the same bridge. Only the configured
+ItemsAdder pack UUID in the play phase is intercepted; other packs and login
+configuration-phase delivery remain untouched. The required flag and prompt are
+preserved. A newer send replaces an older waiting request for the same player,
+and sends wait for an existing multipart reload to finish.
+
+If the matching generation cannot be published within 60 seconds, the retained
+original request is sent instead. Download/apply failures also use that original
+request without reentering the bridge. Leaving removes queued sends. This bridge
+uses the server's existing ProtocolLib plugin and is enabled only with multipart
+delivery; no additional server configuration is needed.
+
 ## Dev activation
 
 1. Install the reviewed TFMCCore build on Dev. Preserve the current jar and configs.

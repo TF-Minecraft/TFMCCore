@@ -5,7 +5,7 @@ version: ${project.version}
 author: Drefvelin
 
 depend: [TLibs]
-softdepend: [ItemsAdder, VehicleFramework, RPCharacters, AdvancedCrafting, MythicLib, MMOCore, SimpleFactions, LuckPerms]
+softdepend: [ItemsAdder, ProtocolLib, VehicleFramework, RPCharacters, AdvancedCrafting, MythicLib, MMOCore, SimpleFactions, LuckPerms]
 
 commands:
   tcore:

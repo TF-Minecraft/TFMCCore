@@ -5,6 +5,10 @@ set -euo pipefail
 sha256sum --check .github/dependencies.sha256
 
 mvn -B --no-transfer-progress org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
+    -Dfile="libs/ProtocolLib-5.5.0-SNAPSHOT.jar" -DgroupId="local" -DartifactId="ProtocolLib" \
+    -Dversion="5.5.0-SNAPSHOT-tfmc-355f7117af95" -Dpackaging=jar -DgeneratePom=true "$@"
+
+mvn -B --no-transfer-progress org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
     -Dfile="libs/MythicLib-1.7.1-SNAPSHOT.jar" -DgroupId="local" -DartifactId="MythicLib" \
     -Dversion="1.7.1-SNAPSHOT-tfmc-225aa7f75d4e" -Dpackaging=jar -DgeneratePom=true "$@"
 mvn -B --no-transfer-progress org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
