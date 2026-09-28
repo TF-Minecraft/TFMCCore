@@ -175,12 +175,13 @@ public final class BukkitTfmcActions implements TfmcActions {
                 .thenCompose(change)
                 .whenComplete((value, error) -> {
                     pending.remove(id, finished);
-                    finished.complete(null);
+                    // Report this change before releasing the next, so replies arrive in order
                     if (error != null) {
                         result.completeExceptionally(error);
                     } else {
                         result.complete(value);
                     }
+                    finished.complete(null);
                 });
         return result;
     }

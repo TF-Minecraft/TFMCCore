@@ -12,6 +12,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -151,6 +153,25 @@ class BukkitTfmcActionsTest {
         assertTrue(step.changed());
         assertTrue(step.group().isEmpty());
         verify(users).saveUser(user);
+    }
+
+    @Test
+    void eachChangeIsReportedBeforeTheNextStarts() {
+        CompletableFuture<User> firstLoad = new CompletableFuture<>();
+        when(users.loadUser(ID)).thenReturn(firstLoad, CompletableFuture.completedFuture(user));
+        promoteTo("helper+");
+        List<String> events = new ArrayList<>();
+
+        actions.stepTrack(player, "helper+", true).thenRun(() -> events.add("first reported"));
+        actions.stepTrack(player, "helper+", true).thenRun(() -> events.add("second reported"));
+        when(users.loadUser(ID)).thenAnswer(call -> {
+            events.add("second started");
+            return CompletableFuture.completedFuture(user);
+        });
+
+        firstLoad.complete(user);
+
+        assertEquals(List.of("first reported", "second started", "second reported"), events);
     }
 
     @Test
