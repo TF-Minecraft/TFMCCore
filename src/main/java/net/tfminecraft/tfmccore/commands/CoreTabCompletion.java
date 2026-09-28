@@ -15,7 +15,7 @@ import net.tfminecraft.tfmccore.stats.StatCategoryRegistry;
 public final class CoreTabCompletion implements TabCompleter {
     private static final String ADMIN_PERMISSION = "tfmccore.admin";
     private static final String RELOAD_PERMISSION = "tfmccore.reload";
-    private static final List<String> RELOAD_TARGETS = List.of("all", "config", "drops", "stations", "stats", "whistle", "lorestones");
+    private static final List<String> RELOAD_TARGETS = List.of("all", "config", "drops", "stations", "stats", "whistle", "lorestones", "tfmc");
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command cmd, String label, String[] args) {

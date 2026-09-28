@@ -1,0 +1,174 @@
+# /tfmc player commands. Messages use MiniMessage (https://docs.advntr.dev/minimessage/format).
+# A message may be a single string or a list of lines.
+# Commands are run as written, with <player> replaced by the player's name.
+# Changes apply after /tcore reload tfmc. Adding or removing a helper track needs a restart;
+# changing a track's permissions does not.
+
+messages:
+  players-only: "<red>Only players can use this command."
+  cooldown: "<red>You need to wait <yellow><time></yellow> before using this again."
+  failed: "<red>Something went wrong. Please try again or open a Ticket."
+
+tips:
+  # Players holding this permission (in the current server context) do not receive chat tips.
+  permission: tips.off
+  disabled:
+    - "<red>Disabled Chat Tips!"
+    - "<gray><i>Use <#eeeeee>/tfmc tips enable</#eeeeee> to enable them again."
+  already-disabled:
+    - "<red>Chat Tips are already disabled."
+    - "<gray><i>Use <#eeeeee>/tfmc tips enable</#eeeeee> to enable them again."
+  enabled:
+    - "<green>Enabled Chat Tips!"
+    - "<gray><i>Use <#eeeeee>/tfmc tips disable</#eeeeee> to disable them again."
+  already-enabled:
+    - "<green>Chat Tips are already enabled."
+    - "<gray><i>Use <#eeeeee>/tfmc tips disable</#eeeeee> to disable them."
+
+pack:
+  # Players holding this permission get the pack on login (handled by the join event).
+  auto-permission: tfmcresourcepack.enable
+  loading:
+    - "<yellow>Loading Resource Pack..."
+    - "<yellow>If you still cannot see the textures, consult the <gold>Discord</gold> FAQ or open a Ticket."
+    - "<gray><i>Use <#eeeeee>/tfmc pack auto</#eeeeee> if you want to apply the pack automatically upon login."
+  auto-enabled:
+    - "<green>Enabled Resource Pack Auto-Apply!"
+    - "<gray><i>Use <#eeeeee>/tfmc pack</#eeeeee> to apply manually."
+  auto-already-enabled:
+    - "<green>Resource Pack Auto-Apply is already enabled."
+    - "<gray><i>Use <#eeeeee>/tfmc pack manual</#eeeeee> to turn it off."
+  auto-disabled:
+    - "<red>Disabled Resource Pack Auto-Apply!"
+    - "<gray><i>Use <#eeeeee>/tfmc pack auto</#eeeeee> to apply automatically upon login."
+  auto-already-disabled:
+    - "<red>Resource Pack Auto-Apply is already disabled."
+    - "<gray><i>Use <#eeeeee>/tfmc pack auto</#eeeeee> to apply automatically upon login."
+
+booster:
+  cooldown-seconds: 259200
+  # Imported once, when tfmc-cooldowns.yml does not exist yet, so existing cooldowns carry over.
+  import-conditionalevents-event: global_booster
+  commands:
+    - "mmocore booster create crafter 1 3600 TFMC"
+    - "mmocore booster create forager 1 3600 TFMC"
+    - "mmocore booster create herborist 1 3600 TFMC"
+  # Checked in order; the first tier the player holds is used.
+  tiers:
+    legacy:
+      permission: group.legacy
+      broadcast:
+        - ""
+        - "<gradient:#40F89A:#10532C:#40F89A>Thank you, <player>, for supporting TFMC!</gradient>"
+        - "<gray><i>You can support us on <#eeeeee>patreon.com/c/TFMCRP"
+    ascended:
+      permission: group.ascended
+      broadcast:
+        - ""
+        - "<gradient:#803EFC:#C00866:#803EFC>Thank you, <player>, for supporting TFMC!</gradient>"
+        - "<gray><i>You can support us on <#eeeeee>patreon.com/c/TFMCRP"
+  denied: "<red>This command only works for <b><gradient:#823FFF:#C20867>Ascended</gradient></b> and <gold><b>Legacy</b></gold> Donators: <gold><click:open_url:'https://www.patreon.com/c/TFMCRP'>https://www.patreon.com/c/TFMCRP</click>"
+  cooldown: "<red>You need to wait <yellow><time></yellow> before boosting again."
+
+drinks:
+  permissions: [group.legacy, group.ascended, group.gilded, group.noble]
+  # Run as the player.
+  player-command: drinkbuilder
+  denied: "<red>This command only works for <#2991C5><b>Noble</b></#2991C5>, <#FCB619><b>Gilded</b></#FCB619>, <#803EFC><b>Ascended</b></#803EFC> and <gold><b>Legacy</b></gold> Donators: <gold><click:open_url:'https://www.patreon.com/c/TFMCRP'>https://www.patreon.com/c/TFMCRP</click>"
+
+patreon:
+  message: "<gray><i>You can support us on <#eeeeee><click:open_url:'https://www.patreon.com/c/TFMCRP'>patreon.com/c/TFMCRP</click>"
+
+statues:
+  commands:
+    - "loot give <player> loot armor_statues:book"
+
+patterns:
+  cooldown-seconds: 10
+  items:
+    - FLOWER_BANNER_PATTERN
+    - GUSTER_BANNER_PATTERN
+    - FIELD_MASONED_BANNER_PATTERN
+    - SKULL_BANNER_PATTERN
+    - MOJANG_BANNER_PATTERN
+    - GLOBE_BANNER_PATTERN
+    - PIGLIN_BANNER_PATTERN
+    - FLOW_BANNER_PATTERN
+    - CREEPER_BANNER_PATTERN
+    - BORDURE_INDENTED_BANNER_PATTERN
+
+masks:
+  cooldown-seconds: 10
+  # One mask is picked at random and substituted for <mask>.
+  command: "mi give MASKS <mask> <player> 1 0 100 1 s"
+  masks:
+    - GHOST_MASK
+    - MONSTER_MASK
+    - ONI_MASK
+    - URUKHAI_MASK
+    - SAMURAI_MASK
+    - STEAMPUNK_MASK
+    - STEAMPUNK_ROBOT_MASK
+    - SKELETON_MASK
+    - SKELETON_MASK2
+    - ZERRATORIS_MASK
+
+map:
+  cooldown-seconds: 10
+  message: "<yellow>View the global nations map on: <gold><click:open_url:'https://www.tfminecraft.net/'>https://www.tfminecraft.net/</click>"
+
+date:
+  weekday: "<gold>The stars reveal this day as <yellow><name>"
+  month: "<gold>The turning of the seasons brings the month of <yellow><name>"
+  weekdays:
+    MONDAY: Morindas
+    TUESDAY: Erindas
+    WEDNESDAY: Varindas
+    THURSDAY: Othrindas
+    FRIDAY: Fierindas
+    SATURDAY: Saerindas
+    SUNDAY: Suparindas
+  months:
+    JANUARY: Seith Jar
+    FEBRUARY: Seith Fer
+    MARCH: Cerr Mar
+    APRIL: Cerr Ael
+    MAY: Cerr Mes
+    JUNE: Oss Jer
+    JULY: Oss Jul
+    AUGUST: Oss Aer
+    SEPTEMBER: Mit Set
+    OCTOBER: Mit Ocs
+    NOVEMBER: Mit Nor
+    DECEMBER: Seith Des
+
+ban:
+  permission: tfmc.helper
+  # <target> and <reason> come from the command; <player> is the helper issuing the ban.
+  commands:
+    - "tempban <target> 8h <reason>"
+  message: "<green>Tempbanned <red><target></red> for 8 hours."
+
+# /tfmc <track> promote|demote moves the player one step along a LuckPerms track.
+helper-tracks:
+  helper:
+    promote-permission: helper.promote
+    demote-permission: helper.demote
+  helper+:
+    promote-permission: helper+.promote
+    demote-permission: helper+.demote
+track-messages:
+  promoted: "<green>You are now <yellow><group></yellow>."
+  demoted: "<green>You are now <yellow><group></yellow>."
+  failed: "<red>Your helper status could not be changed."
+
+# /tfmc poster <name> runs the command as the player.
+posters:
+  Zerratoris1: "images create https://cdn.imgchest.com/files/yxkczwm8rq7.jpg 42.74553571428"
+  Zerratoris2: "images create https://cdn.imgchest.com/files/7pjcqrazr87.jpg 42.74553571428"
+  Zerratoris3: "images create https://cdn.imgchest.com/files/739cxwpeqp7.jpg 42.74553571428"
+  Zerratoris4: "images create https://cdn.imgchest.com/files/yrgcn388ro4.jpg 42.74553571428"
+  Zerratoris5: "images create https://cdn.imgchest.com/files/yq9c3vklgd4.jpg 42.74553571428"
+  Zerratoris6: "images create https://cdn.imgchest.com/files/yd5cemzr9v4.jpg 42.74553571428"
+  Zerratoris7: "images create https://cdn.imgchest.com/files/7951abcc2f81.jpg 42.74553571428"
+  Zerratoris8: "images create https://cdn.imgchest.com/files/c34edb81f614.jpg 42.74553571428"

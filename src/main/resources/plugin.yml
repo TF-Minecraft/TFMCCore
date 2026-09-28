@@ -10,8 +10,7 @@ softdepend: [ItemsAdder, ProtocolLib, VehicleFramework, RPCharacters, AdvancedCr
 commands:
   tcore:
     description: TFMC Core command
-    usage: /tcore pack [player] | /tcore reload [all|config|drops|stations|stats|whistle|lorestones] | /tcore stats <category> [player] | /tcore stones give <lorestone|namestone> [player] [amount]
-    aliases: [tfmc]
+    usage: /tcore pack [player] | /tcore reload [all|config|drops|stations|stats|whistle|lorestones|tfmc] | /tcore stats <category> [player] | /tcore stones give <lorestone|namestone> [player] [amount]
   silentpermission:
     description: Set a LuckPerms user permission without console spam
     usage: /silentpermission <player|uuid> <permission> <true|false>
