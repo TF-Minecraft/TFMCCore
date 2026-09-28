@@ -174,13 +174,14 @@ public final class BukkitTfmcActions implements TfmcActions {
         ready.thenCompose(ignored -> api.getUserManager().loadUser(id))
                 .thenCompose(change)
                 .whenComplete((value, error) -> {
-                    pending.remove(id, finished);
-                    // Report this change before releasing the next, so replies arrive in order
+                    // Report this change before releasing the next, so replies arrive in order;
+                    // the queue entry stays until then so a new request still waits behind it
                     if (error != null) {
                         result.completeExceptionally(error);
                     } else {
                         result.complete(value);
                     }
+                    pending.remove(id, finished);
                     finished.complete(null);
                 });
         return result;
