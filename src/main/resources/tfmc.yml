@@ -160,6 +160,7 @@ helper-tracks:
 track-messages:
   promoted: "<green>You are now <yellow><group></yellow>."
   demoted: "<green>You are now <yellow><group></yellow>."
+  removed: "<green>You are no longer on the <yellow><track></yellow> track."
   failed: "<red>Your helper status could not be changed."
 
 # /tfmc poster <name> runs the command as the player.

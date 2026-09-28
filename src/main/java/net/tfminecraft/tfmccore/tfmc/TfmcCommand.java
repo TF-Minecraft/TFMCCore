@@ -266,15 +266,19 @@ public final class TfmcCommand {
     }
 
     private void step(Player player, String track, boolean promote) {
-        actions.stepTrack(player, track, promote).whenCompleteAsync((group, error) -> {
+        actions.stepTrack(player, track, promote).whenCompleteAsync((step, error) -> {
             if (error != null) {
                 LOGGER.warning("Failed to " + (promote ? "promote " : "demote ") + player.getName() + " on " + track + ": " + error.getMessage());
             }
-            if (error != null || group.isEmpty()) {
+            if (error != null || !step.changed()) {
                 send(player, "track-messages.failed");
                 return;
             }
-            send(player, promote ? "track-messages.promoted" : "track-messages.demoted", Placeholder.unparsed("group", group.get()));
+            if (step.group().isEmpty()) {
+                send(player, "track-messages.removed", Placeholder.unparsed("track", track));
+                return;
+            }
+            send(player, promote ? "track-messages.promoted" : "track-messages.demoted", Placeholder.unparsed("group", step.group().get()));
         }, mainThread);
     }
 

@@ -15,6 +15,16 @@ public interface TfmcActions {
     /** A player's flight settings before a temporary change, so they can be put back. */
     record FlightState(boolean allowFlight, boolean flying, float flySpeed) {}
 
+    /**
+     * Outcome of a track step. {@code group} is empty when the step removed the player from the
+     * track (demoting past its first group) or when it did not change anything.
+     */
+    record TrackStep(boolean changed, Optional<String> group) {
+        public static TrackStep unchanged() {
+            return new TrackStep(false, Optional.empty());
+        }
+    }
+
     void consoleCommand(String command);
 
     void playerCommand(Player player, String command);
@@ -29,8 +39,8 @@ public interface TfmcActions {
     /** Sets a LuckPerms permission to true or false for the player in this server's context. */
     CompletableFuture<Void> setPermission(Player player, String permission, boolean granted);
 
-    /** Moves the player one step along a LuckPerms track; completes with the new group. */
-    CompletableFuture<Optional<String>> stepTrack(Player player, String track, boolean promote);
+    /** Moves the player one step along a LuckPerms track. */
+    CompletableFuture<TrackStep> stepTrack(Player player, String track, boolean promote);
 
     /** Lets the player fly at {@code speed} and returns their previous flight settings. */
     FlightState startFlight(Player player, float speed);

@@ -53,6 +53,7 @@ class TfmcCommandTest {
     private final List<Long> scheduledTicks = new ArrayList<>();
     private final List<Runnable> scheduled = new ArrayList<>();
     private int cancelled;
+    private TfmcActions.TrackStep nextStep;
     private final List<Runnable> mainThread = new ArrayList<>();
     private int packsSent;
     private long clock = NOW.toEpochMilli();
@@ -114,6 +115,19 @@ class TfmcCommandTest {
         assertTrue(visible(player("Mod", "tfmc.moderator")).contains("ban"));
         assertEquals(List.of("demote"), visible(player("Helper", "helper.promote", "helper.demote"), "helper"));
         assertFalse(visible(player("Anyone")).contains("helper"));
+    }
+
+    @Test
+    void trackStepsReportRemovalAndFailure() throws Exception {
+        TestPlayer helper = player("Helper", "helper.demote");
+
+        nextStep = new TfmcActions.TrackStep(true, Optional.empty());
+        run(helper, "tfmc helper demote");
+        assertEquals(List.of("You are no longer on the helper track."), helper.messages);
+
+        nextStep = TfmcActions.TrackStep.unchanged();
+        run(helper, "tfmc helper demote");
+        assertEquals(List.of("Your helper status could not be changed."), helper.messages);
     }
 
     @Test
@@ -457,9 +471,10 @@ class TfmcCommandTest {
         }
 
         @Override
-        public CompletableFuture<Optional<String>> stepTrack(Player player, String track, boolean promote) {
+        public CompletableFuture<TrackStep> stepTrack(Player player, String track, boolean promote) {
             trackSteps.add(player.getName() + " " + track + " " + (promote ? "promote" : "demote"));
-            return CompletableFuture.completedFuture(Optional.of(promote ? "helper" : "helper_player"));
+            return CompletableFuture.completedFuture(nextStep != null ? nextStep
+                    : new TrackStep(true, Optional.of(promote ? "helper" : "helper_player")));
         }
     }
 }
