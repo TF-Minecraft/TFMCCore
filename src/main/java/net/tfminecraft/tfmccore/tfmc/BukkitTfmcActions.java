@@ -9,6 +9,9 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.RegisteredServiceProvider;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitTask;
 
 import net.kyori.adventure.text.Component;
 import net.luckperms.api.LuckPerms;
@@ -104,6 +107,30 @@ public final class BukkitTfmcActions implements TfmcActions {
             }
             return save(api, user).thenApply(done -> group);
         });
+    }
+
+    @Override
+    public FlightState startFlight(Player player, float speed) {
+        FlightState previous = new FlightState(player.getAllowFlight(), player.isFlying(), player.getFlySpeed());
+        player.setAllowFlight(true);
+        player.setFlySpeed(Math.max(-1f, Math.min(1f, speed)));
+        return previous;
+    }
+
+    @Override
+    public void endFlight(Player player, FlightState previous) {
+        player.setFlySpeed(previous.flySpeed());
+        player.setAllowFlight(previous.allowFlight());
+        player.setFlying(previous.allowFlight() && previous.flying());
+        if (!player.getAllowFlight() && !player.isOnGround()) {
+            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 100, 0, false, false, true));
+        }
+    }
+
+    @Override
+    public Runnable later(long ticks, Runnable task) {
+        BukkitTask scheduled = Bukkit.getScheduler().runTaskLater(plugin, task, ticks);
+        return scheduled::cancel;
     }
 
     private static CompletableFuture<User> withUser(LuckPerms api, Player player) {

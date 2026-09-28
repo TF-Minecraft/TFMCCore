@@ -5,8 +5,11 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -43,6 +46,8 @@ public final class TfmcCommand {
     public static final String NAME = "tfmc";
     public static final String BOOSTER_COOLDOWN = "booster";
 
+    private record ParrotFlight(TfmcActions.FlightState previous, Runnable cancelExpiry) {}
+
     private static final Logger LOGGER = Logger.getLogger("TFMCCore");
     private static final Pattern PLAYER_NAME = Pattern.compile("[A-Za-z0-9_]{1,16}");
     private static final MiniMessage MINI = MiniMessage.miniMessage();
@@ -53,6 +58,7 @@ public final class TfmcCommand {
     private final Clock clock;
     private final RandomGenerator random;
     private final Executor mainThread;
+    private final Map<UUID, ParrotFlight> parrots = new ConcurrentHashMap<>();
 
     /** {@code mainThread} runs LuckPerms completions, which arrive on LuckPerms worker threads. */
     public TfmcCommand(TfmcConfig config, TfmcCooldowns cooldowns, TfmcActions actions, Clock clock,
@@ -105,6 +111,34 @@ public final class TfmcCommand {
                     .then(Commands.literal("demote").requires(demote)
                             .executes(player(p -> step(p, name, false)))));
         }
+
+        // Content still being built on dev; each section stays hidden until tfmc.yml enables it
+        root.then(Commands.literal("tutorial").requires(enabled("tutorials"))
+                .then(Commands.argument("name", StringArgumentType.word())
+                        .suggests((context, builder) -> {
+                            String typed = builder.getRemainingLowerCase();
+                            config.keys("tutorials.list").stream()
+                                    .filter(tutorial -> tutorial.toLowerCase(Locale.ROOT).startsWith(typed))
+                                    .forEach(builder::suggest);
+                            return builder.buildFuture();
+                        })
+                        .then(Commands.literal("clear").executes(context -> {
+                            String name = StringArgumentType.getString(context, "name");
+                            return player(p -> clearTutorial(p, name)).run(context);
+                        }))));
+
+        root.then(Commands.literal("parrot")
+                .requires(enabled("parrot").and(anyPermission("parrot.permissions")))
+                .executes(player(this::parrot)));
+        root.then(Commands.literal("unparrot").requires(enabled("parrot"))
+                .executes(player(p -> {
+                    if (!endParrot(p, true)) {
+                        send(p, "parrot.not-a-parrot");
+                    }
+                })));
+
+        root.then(Commands.literal("worldboss").requires(enabled("worldboss"))
+                .then(Commands.literal("info").executes(player(p -> send(p, "worldboss.info")))));
 
         root.then(Commands.literal("poster")
                 .then(Commands.argument("name", StringArgumentType.word())
@@ -244,6 +278,65 @@ public final class TfmcCommand {
         }, mainThread);
     }
 
+    private void clearTutorial(Player player, String name) {
+        Optional<String> tutorial = config.keys("tutorials.list").stream()
+                .filter(key -> key.equalsIgnoreCase(name))
+                .findFirst();
+        if (tutorial.isEmpty()) {
+            send(player, "tutorials.unknown", Placeholder.unparsed("name", name));
+            return;
+        }
+        String base = "tutorials.list." + tutorial.get();
+        if (onCooldown(player, "tutorial." + tutorial.get(), config.seconds("tutorials.cooldown-seconds"), "messages.cooldown")) {
+            return;
+        }
+        runConsole(player, config.lines(base + ".clear"));
+        send(player, "tutorials.cleared", Placeholder.unparsed("name", config.string(base + ".name", tutorial.get())));
+    }
+
+    private void parrot(Player player) {
+        if (parrots.containsKey(player.getUniqueId())) {
+            send(player, "parrot.already");
+            return;
+        }
+        if (onCooldown(player, "parrot", config.seconds("parrot.cooldown-seconds"), "parrot.cooldown")) {
+            return;
+        }
+        long seconds = Math.max(1L, config.seconds("parrot.duration-seconds"));
+        actions.consoleCommand(config.string("parrot.disguise")
+                .replace("<player>", player.getName()).replace("<seconds>", Long.toString(seconds)));
+        TfmcActions.FlightState previous = actions.startFlight(player, (float) config.decimal("parrot.fly-speed", 0.01));
+        Runnable cancel = actions.later(seconds * 20L, () -> endParrot(player, false));
+        parrots.put(player.getUniqueId(), new ParrotFlight(previous, cancel));
+        send(player, "parrot.started");
+    }
+
+    /** Ends a parrot flight early or on expiry; false when the player is not a parrot. */
+    private boolean endParrot(Player player, boolean undisguise) {
+        ParrotFlight flight = parrots.remove(player.getUniqueId());
+        if (flight == null) {
+            return false;
+        }
+        flight.cancelExpiry().run();
+        if (undisguise) {
+            actions.consoleCommand(config.string("parrot.undisguise").replace("<player>", player.getName()));
+        }
+        actions.endFlight(player, flight.previous());
+        send(player, "parrot.ended");
+        return true;
+    }
+
+    /** Puts a leaving player's flight settings back so the temporary flight is not saved with them. */
+    public void onQuit(Player player) {
+        endParrot(player, true);
+    }
+
+    public void shutdown() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            endParrot(player, true);
+        }
+    }
+
     private void poster(Player player, String name) {
         config.entries("posters").entrySet().stream()
                 .filter(poster -> poster.getKey().equalsIgnoreCase(name))
@@ -271,12 +364,16 @@ public final class TfmcCommand {
     }
 
     private boolean onCooldown(Player player, String subcommand) {
-        long left = cooldowns.remaining(subcommand, player.getUniqueId(), config.seconds(subcommand + ".cooldown-seconds") * 1000L);
+        return onCooldown(player, subcommand, config.seconds(subcommand + ".cooldown-seconds"), "messages.cooldown");
+    }
+
+    private boolean onCooldown(Player player, String key, long seconds, String messagePath) {
+        long left = cooldowns.remaining(key, player.getUniqueId(), seconds * 1000L);
         if (left > 0) {
-            send(player, "messages.cooldown", Placeholder.unparsed("time", TfmcCooldowns.format(left)));
+            send(player, messagePath, Placeholder.unparsed("time", TfmcCooldowns.format(left)));
             return true;
         }
-        cooldowns.markUsed(subcommand, player.getUniqueId());
+        cooldowns.markUsed(key, player.getUniqueId());
         return false;
     }
 
@@ -303,6 +400,18 @@ public final class TfmcCommand {
             return null;
         }
         return promote ? steps.promotePermission() : steps.demotePermission();
+    }
+
+    private Predicate<CommandSourceStack> enabled(String section) {
+        return source -> config.enabled(section);
+    }
+
+    /** Any of the listed permissions; an empty list means everyone. */
+    private Predicate<CommandSourceStack> anyPermission(String path) {
+        return source -> {
+            List<String> nodes = config.lines(path);
+            return nodes.isEmpty() || nodes.stream().anyMatch(source.getSender()::hasPermission);
+        };
     }
 
     // Restricted nodes fail closed: a missing or blank permission hides the command from everyone

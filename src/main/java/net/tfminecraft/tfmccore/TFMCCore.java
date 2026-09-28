@@ -5,6 +5,9 @@ import java.time.Clock;
 import java.util.Set;
 import java.util.Random;
 
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
@@ -57,6 +60,7 @@ public class TFMCCore extends JavaPlugin{
     private final SkillsStatConfig skillsStatConfig = new SkillsStatConfig();
     private final FactionsStatConfig factionsStatConfig = new FactionsStatConfig();
     private final TfmcConfig tfmcConfig = new TfmcConfig();
+    private TfmcCommand tfmcCommand;
 
     private final CoreManager coreManager = new CoreManager();
     private final StationManager stationManager = new StationManager();
@@ -140,14 +144,21 @@ public class TFMCCore extends JavaPlugin{
             }
             cooldowns.save();
         }
-        TfmcCommand tfmc = new TfmcCommand(tfmcConfig, cooldowns, new BukkitTfmcActions(this),
+        TfmcCommand tfmc = tfmcCommand = new TfmcCommand(tfmcConfig, cooldowns, new BukkitTfmcActions(this),
                 Clock.systemDefaultZone(), new Random(), task -> getServer().getScheduler().runTask(this, task));
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 event -> event.registrar().register(tfmc.build(), "TFMC player commands"));
+        getServer().getPluginManager().registerEvents(new Listener() {
+            @EventHandler
+            public void onQuit(PlayerQuitEvent event) {
+                tfmc.onQuit(event.getPlayer());
+            }
+        }, this);
     }
 
     @Override
     public void onDisable() {
+        if (tfmcCommand != null) tfmcCommand.shutdown();
         if (multipartPacks != null) multipartPacks.close();
         if (stoneListener != null) {
             stoneListener.refundAll();

@@ -51,6 +51,14 @@ public final class TfmcConfig {
         return value == null || value.isBlank() ? fallback : value;
     }
 
+    public boolean enabled(String section) {
+        return config.getBoolean(section + ".enabled", false);
+    }
+
+    public double decimal(String path, double fallback) {
+        return config.getDouble(path, fallback);
+    }
+
     public long seconds(String path) {
         return Math.max(0L, config.getLong(path, 0L));
     }
