@@ -77,7 +77,7 @@ class BukkitTfmcActionsTest {
         when(users.loadUser(ID)).thenReturn(CompletableFuture.completedFuture(user));
         promoteTo("helper+");
 
-        assertEquals(Optional.of("helper+"), actions.stepTrack(player, "helper+", true).join());
+        assertEquals(Optional.of("helper+"), actions.stepTrack(player, "helper+", true).join().group());
 
         InOrder order = inOrder(users, track);
         order.verify(users).loadUser(ID);
@@ -108,16 +108,16 @@ class BukkitTfmcActionsTest {
         when(demoted.getStatus()).thenReturn(DemotionResult.Status.SUCCESS);
         when(track.demote(any(User.class), any(ContextSet.class))).thenReturn(demoted);
 
-        CompletableFuture<Optional<String>> promote = actions.stepTrack(player, "helper+", true);
-        CompletableFuture<Optional<String>> demote = actions.stepTrack(player, "helper+", false);
+        CompletableFuture<TfmcActions.TrackStep> promote = actions.stepTrack(player, "helper+", true);
+        CompletableFuture<TfmcActions.TrackStep> demote = actions.stepTrack(player, "helper+", false);
 
         verify(users, times(1)).loadUser(ID);
         assertFalse(demote.isDone());
 
         firstLoad.complete(user);
 
-        assertEquals(Optional.of("helper+"), promote.join());
-        assertEquals(Optional.of("helper+_inactive"), demote.join());
+        assertEquals(Optional.of("helper+"), promote.join().group());
+        assertEquals(Optional.of("helper+_inactive"), demote.join().group());
         InOrder order = inOrder(track, users);
         order.verify(track).promote(any(User.class), any(ContextSet.class));
         order.verify(users).saveUser(user);
@@ -133,8 +133,38 @@ class BukkitTfmcActionsTest {
         when(ambiguous.getStatus()).thenReturn(PromotionResult.Status.AMBIGUOUS_CALL);
         when(track.promote(any(User.class), any(ContextSet.class))).thenReturn(ambiguous);
 
-        assertTrue(actions.stepTrack(player, "helper+", true).join().isEmpty());
+        assertFalse(actions.stepTrack(player, "helper+", true).join().changed());
         verify(users, never()).saveUser(user);
+    }
+
+    @Test
+    void demotingPastTheFirstGroupIsSaved() {
+        when(users.loadUser(ID)).thenReturn(CompletableFuture.completedFuture(user));
+        DemotionResult removed = mock(DemotionResult.class);
+        when(removed.wasSuccessful()).thenReturn(true);
+        when(removed.getGroupTo()).thenReturn(Optional.empty());
+        when(removed.getStatus()).thenReturn(DemotionResult.Status.REMOVED_FROM_FIRST_GROUP);
+        when(track.demote(any(User.class), any(ContextSet.class))).thenReturn(removed);
+
+        TfmcActions.TrackStep step = actions.stepTrack(player, "helper+", false).join();
+
+        assertTrue(step.changed());
+        assertTrue(step.group().isEmpty());
+        verify(users).saveUser(user);
+    }
+
+    @Test
+    void callersCannotReleaseTheNextChangeEarly() {
+        CompletableFuture<User> firstLoad = new CompletableFuture<>();
+        when(users.loadUser(ID)).thenReturn(firstLoad, CompletableFuture.completedFuture(user));
+        promoteTo("helper+");
+
+        actions.stepTrack(player, "helper+", true).cancel(false);
+        actions.stepTrack(player, "helper+", true);
+
+        verify(users, times(1)).loadUser(ID);
+        firstLoad.complete(user);
+        verify(users, times(2)).loadUser(ID);
     }
 
     private void promoteTo(String group) {

@@ -100,7 +100,7 @@ public final class BukkitTfmcActions implements TfmcActions {
     }
 
     @Override
-    public CompletableFuture<Optional<String>> stepTrack(Player player, String trackName, boolean promote) {
+    public CompletableFuture<TrackStep> stepTrack(Player player, String trackName, boolean promote) {
         LuckPerms api = luckPerms.get();
         if (api == null) {
             return CompletableFuture.failedFuture(new IllegalStateException("LuckPerms is not available"));
@@ -113,24 +113,25 @@ public final class BukkitTfmcActions implements TfmcActions {
         // Global context, like "lp user <player> promote|demote <track>"
         ImmutableContextSet global = api.getContextManager().getContextSetFactory().immutableEmpty();
         return withFreshUser(api, player, user -> {
-            Optional<String> group;
+            TrackStep step;
             String status;
             if (promote) {
                 var result = track.promote(user, global);
-                group = result.wasSuccessful() ? result.getGroupTo() : Optional.empty();
+                step = new TrackStep(result.wasSuccessful(), result.getGroupTo());
                 status = result.getStatus().name();
             } else {
+                // Demoting past the first group succeeds with no destination: removed from the track
                 var result = track.demote(user, global);
-                group = result.wasSuccessful() ? result.getGroupTo() : Optional.empty();
+                step = new TrackStep(result.wasSuccessful(), result.getGroupTo());
                 status = result.getStatus().name();
             }
-            if (group.isEmpty()) {
+            if (!step.changed()) {
                 // e.g. AMBIGUOUS_CALL when the player holds more than one group on the track
                 LOGGER.warning("LuckPerms could not " + (promote ? "promote " : "demote ") + player.getName()
                         + " on " + trackName + ": " + status);
-                return CompletableFuture.completedFuture(group);
+                return CompletableFuture.completedFuture(TrackStep.unchanged());
             }
-            return save(api, user).thenApply(done -> group);
+            return save(api, user).thenApply(done -> step);
         });
     }
 
@@ -166,22 +167,23 @@ public final class BukkitTfmcActions implements TfmcActions {
      */
     private <T> CompletableFuture<T> withFreshUser(LuckPerms api, Player player, Function<User, CompletableFuture<T>> change) {
         UUID id = player.getUniqueId();
-        CompletableFuture<T> done = new CompletableFuture<>();
-        CompletableFuture<?> previous = pending.put(id, done);
-        CompletableFuture<?> ready = previous == null
-                ? CompletableFuture.completedFuture(null)
-                : previous.handle((value, error) -> null);
+        // The queue waits on its own future, so callers cannot release the next change early
+        CompletableFuture<Void> finished = new CompletableFuture<>();
+        CompletableFuture<T> result = new CompletableFuture<>();
+        CompletableFuture<?> previous = pending.put(id, finished);
+        CompletableFuture<?> ready = previous == null ? CompletableFuture.completedFuture(null) : previous;
         ready.thenCompose(ignored -> api.getUserManager().loadUser(id))
                 .thenCompose(change)
                 .whenComplete((value, error) -> {
-                    pending.remove(id, done);
+                    pending.remove(id, finished);
+                    finished.complete(null);
                     if (error != null) {
-                        done.completeExceptionally(error);
+                        result.completeExceptionally(error);
                     } else {
-                        done.complete(value);
+                        result.complete(value);
                     }
                 });
-        return done;
+        return result;
     }
 
     private static CompletableFuture<Void> save(LuckPerms api, User user) {
