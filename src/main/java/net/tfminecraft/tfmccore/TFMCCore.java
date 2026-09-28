@@ -185,7 +185,12 @@ public class TFMCCore extends JavaPlugin{
     }
 
     public boolean reloadTfmcConfig() {
-        return tfmcConfig.load(new File(getDataFolder(), "tfmc.yml"));
+        boolean ok = tfmcConfig.load(new File(getDataFolder(), "tfmc.yml"));
+        if (ok) {
+            // Permissions are read live; resend the tree so clients see the change
+            getServer().getOnlinePlayers().forEach(org.bukkit.entity.Player::updateCommands);
+        }
+        return ok;
     }
 
     public boolean reloadAll() {

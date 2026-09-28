@@ -5,11 +5,11 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.logging.Logger;
 import java.util.random.RandomGenerator;
 import java.util.regex.Pattern;
@@ -81,22 +81,23 @@ public final class TfmcCommand {
         root.then(Commands.literal("date").executes(player(this::date)));
 
         root.then(Commands.literal("ban")
-                .requires(permission(config.string("ban.permission", "tfmc.helper")))
+                .requires(permission(() -> config.string("ban.permission", "tfmc.helper")))
                 .then(Commands.argument("player", StringArgumentType.word())
                         .suggests(onlinePlayers())
                         .executes(context -> ban(context, ""))
                         .then(Commands.argument("reason", StringArgumentType.greedyString())
                                 .executes(context -> ban(context, StringArgumentType.getString(context, "reason"))))));
 
-        for (Map.Entry<String, TfmcConfig.TrackSteps> track : config.tracks().entrySet()) {
-            String name = track.getKey();
-            String promote = track.getValue().promotePermission();
-            String demote = track.getValue().demotePermission();
+        // The track names shape the tree, so they are fixed until restart; their permissions
+        // are read on every check so /tcore reload tfmc applies them
+        for (String name : config.tracks().keySet()) {
+            Predicate<CommandSourceStack> promote = permission(() -> trackPermission(name, true));
+            Predicate<CommandSourceStack> demote = permission(() -> trackPermission(name, false));
             root.then(Commands.literal(name)
-                    .requires(permission(promote).or(permission(demote)))
-                    .then(Commands.literal("promote").requires(permission(promote))
+                    .requires(promote.or(demote))
+                    .then(Commands.literal("promote").requires(promote)
                             .executes(player(p -> step(p, name, true))))
-                    .then(Commands.literal("demote").requires(permission(demote))
+                    .then(Commands.literal("demote").requires(demote)
                             .executes(player(p -> step(p, name, false)))));
         }
 
@@ -291,8 +292,20 @@ public final class TfmcCommand {
         };
     }
 
-    private static Predicate<CommandSourceStack> permission(String node) {
-        return source -> node == null || node.isEmpty() || source.getSender().hasPermission(node);
+    private String trackPermission(String track, boolean promote) {
+        TfmcConfig.TrackSteps steps = config.tracks().get(track);
+        if (steps == null) {
+            return null;
+        }
+        return promote ? steps.promotePermission() : steps.demotePermission();
+    }
+
+    // Restricted nodes fail closed: a missing or blank permission hides the command from everyone
+    private static Predicate<CommandSourceStack> permission(Supplier<String> node) {
+        return source -> {
+            String permission = node.get();
+            return permission != null && !permission.isBlank() && source.getSender().hasPermission(permission);
+        };
     }
 
     private static SuggestionProvider<CommandSourceStack> onlinePlayers() {

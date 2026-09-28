@@ -53,10 +53,11 @@ class TfmcCommandTest {
     private long clock = NOW.toEpochMilli();
 
     private CommandDispatcher<CommandSourceStack> dispatcher;
+    private TfmcConfig config;
 
     @BeforeEach
     void setUp() throws Exception {
-        TfmcConfig config = new TfmcConfig();
+        config = new TfmcConfig();
         config.loadFromString(Files.readString(Path.of("src/main/resources/tfmc.yml")));
         TfmcCooldowns cooldowns = new TfmcCooldowns(null, Set.of(), () -> clock);
         RandomGenerator firstMask = new RandomGenerator() {
@@ -94,6 +95,19 @@ class TfmcCommandTest {
         assertTrue(visible(onDuty).contains("ban"));
 
         assertEquals(List.of("demote"), visible(player("Senior", "helper+.demote"), "helper+"));
+    }
+
+    @Test
+    void reloadAppliesPermissionChangesAndBlankPermissionsHideCommands() throws Exception {
+        String yaml = Files.readString(Path.of("src/main/resources/tfmc.yml"));
+        config.loadFromString(yaml
+                .replace("  permission: tfmc.helper", "  permission: tfmc.moderator")
+                .replace("promote-permission: helper.promote", "promote-permission: \"\""));
+
+        assertFalse(visible(player("Helper", "tfmc.helper")).contains("ban"));
+        assertTrue(visible(player("Mod", "tfmc.moderator")).contains("ban"));
+        assertEquals(List.of("demote"), visible(player("Helper", "helper.promote", "helper.demote"), "helper"));
+        assertFalse(visible(player("Anyone")).contains("helper"));
     }
 
     @Test

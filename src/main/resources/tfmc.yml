@@ -1,7 +1,8 @@
 # /tfmc player commands. Messages use MiniMessage (https://docs.advntr.dev/minimessage/format).
 # A message may be a single string or a list of lines.
 # Commands are run as written, with <player> replaced by the player's name.
-# Changes apply after /tcore reload tfmc, except the helper tracks, which need a restart.
+# Changes apply after /tcore reload tfmc. Adding or removing a helper track needs a restart;
+# changing a track's permissions does not.
 
 messages:
   players-only: "<red>Only players can use this command."

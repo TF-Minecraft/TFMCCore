@@ -72,9 +72,8 @@ public final class BukkitTfmcActions implements TfmcActions {
         return withUser(api, player).thenCompose(user -> {
             user.data().clear(NodeType.PERMISSION.predicate(node ->
                     node.getPermission().equalsIgnoreCase(permission) && node.getContexts().equals(context)));
-            if (granted) {
-                user.data().add(PermissionNode.builder(permission).value(true).context(context).build());
-            }
+            // An explicit false overrides a true inherited from a group or the global context
+            user.data().add(PermissionNode.builder(permission).value(granted).context(context).build());
             return save(api, user);
         });
     }

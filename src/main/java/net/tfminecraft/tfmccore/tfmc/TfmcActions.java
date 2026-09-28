@@ -23,7 +23,7 @@ public interface TfmcActions {
     /** Gives one of each item, dropping anything that does not fit at the player's feet. */
     void giveItems(Player player, List<Material> items);
 
-    /** Sets (or removes) a LuckPerms permission for the player in this server's context. */
+    /** Sets a LuckPerms permission to true or false for the player in this server's context. */
     CompletableFuture<Void> setPermission(Player player, String permission, boolean granted);
 
     /** Moves the player one step along a LuckPerms track; completes with the new group. */
