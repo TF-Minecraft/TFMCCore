@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -51,8 +52,12 @@ public final class TfmcCommand {
     private final TfmcActions actions;
     private final Clock clock;
     private final RandomGenerator random;
+    private final Executor mainThread;
 
-    public TfmcCommand(TfmcConfig config, TfmcCooldowns cooldowns, TfmcActions actions, Clock clock, RandomGenerator random) {
+    /** {@code mainThread} runs LuckPerms completions, which arrive on LuckPerms worker threads. */
+    public TfmcCommand(TfmcConfig config, TfmcCooldowns cooldowns, TfmcActions actions, Clock clock,
+            RandomGenerator random, Executor mainThread) {
+        this.mainThread = mainThread;
         this.config = config;
         this.cooldowns = cooldowns;
         this.actions = actions;
@@ -227,7 +232,7 @@ public final class TfmcCommand {
     }
 
     private void step(Player player, String track, boolean promote) {
-        actions.stepTrack(player, track, promote).whenComplete((group, error) -> {
+        actions.stepTrack(player, track, promote).whenCompleteAsync((group, error) -> {
             if (error != null) {
                 LOGGER.warning("Failed to " + (promote ? "promote " : "demote ") + player.getName() + " on " + track + ": " + error.getMessage());
             }
@@ -236,7 +241,7 @@ public final class TfmcCommand {
                 return;
             }
             send(player, promote ? "track-messages.promoted" : "track-messages.demoted", Placeholder.unparsed("group", group.get()));
-        });
+        }, mainThread);
     }
 
     private void poster(Player player, String name) {
@@ -249,14 +254,14 @@ public final class TfmcCommand {
     }
 
     private void update(Player player, CompletableFuture<Void> change, String successPath) {
-        change.whenComplete((done, error) -> {
+        change.whenCompleteAsync((done, error) -> {
             if (error != null) {
                 LOGGER.warning("Failed to update permissions for " + player.getName() + ": " + error.getMessage());
                 send(player, "messages.failed");
             } else {
                 send(player, successPath);
             }
-        });
+        }, mainThread);
     }
 
     private void runConsole(Player player, List<String> commands) {

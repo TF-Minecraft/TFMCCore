@@ -141,7 +141,7 @@ public class TFMCCore extends JavaPlugin{
             cooldowns.save();
         }
         TfmcCommand tfmc = new TfmcCommand(tfmcConfig, cooldowns, new BukkitTfmcActions(this),
-                Clock.systemDefaultZone(), new Random());
+                Clock.systemDefaultZone(), new Random(), task -> getServer().getScheduler().runTask(this, task));
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 event -> event.registrar().register(tfmc.build(), "TFMC player commands"));
     }

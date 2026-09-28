@@ -49,6 +49,7 @@ class TfmcCommandTest {
     private final List<String> permissionChanges = new ArrayList<>();
     private final List<String> trackSteps = new ArrayList<>();
     private final List<Material> given = new ArrayList<>();
+    private final List<Runnable> mainThread = new ArrayList<>();
     private int packsSent;
     private long clock = NOW.toEpochMilli();
 
@@ -72,7 +73,7 @@ class TfmcCommandTest {
             }
         };
         TfmcCommand command = new TfmcCommand(config, cooldowns, new RecordingActions(),
-                Clock.fixed(NOW, ZoneOffset.UTC), firstMask);
+                Clock.fixed(NOW, ZoneOffset.UTC), firstMask, mainThread::add);
         dispatcher = new CommandDispatcher<>();
         dispatcher.getRoot().addChild(command.build());
     }
@@ -108,6 +109,17 @@ class TfmcCommandTest {
         assertTrue(visible(player("Mod", "tfmc.moderator")).contains("ban"));
         assertEquals(List.of("demote"), visible(player("Helper", "helper.promote", "helper.demote"), "helper"));
         assertFalse(visible(player("Anyone")).contains("helper"));
+    }
+
+    @Test
+    void luckPermsResultsAreReportedOnTheMainThread() throws Exception {
+        TestPlayer helper = player("Helper", "helper.demote");
+        helper.messages.clear();
+        dispatcher.execute("tfmc helper demote", source(helper.player));
+
+        assertTrue(helper.messages.isEmpty());
+        runMainThread();
+        assertEquals(List.of("You are now helper_player."), helper.messages);
     }
 
     @Test
@@ -250,6 +262,13 @@ class TfmcCommandTest {
     private void run(TestPlayer player, String command) throws CommandSyntaxException {
         player.messages.clear();
         dispatcher.execute(command, source(player.player));
+        runMainThread();
+    }
+
+    private void runMainThread() {
+        while (!mainThread.isEmpty()) {
+            mainThread.remove(0).run();
+        }
     }
 
     private static CommandSourceStack source(CommandSender sender) {
