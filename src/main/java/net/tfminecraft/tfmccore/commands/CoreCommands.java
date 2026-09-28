@@ -97,8 +97,12 @@ public class CoreCommands implements CommandExecutor {
                 ok = TFMCCore.getInstance().reloadStonesConfig();
                 label = "lorestones config";
             }
+            case "tfmc" -> {
+                ok = TFMCCore.getInstance().reloadTfmcConfig();
+                label = "/tfmc config";
+            }
             default -> {
-                sender.sendMessage("Usage: /tcore reload [all|config|drops|stations|stats|whistle|lorestones]");
+                sender.sendMessage("Usage: /tcore reload [all|config|drops|stations|stats|whistle|lorestones|tfmc]");
                 return true;
             }
         }
@@ -193,7 +197,7 @@ public class CoreCommands implements CommandExecutor {
     private static void sendUsage(CommandSender sender) {
         sender.sendMessage("§e/tcore stats <category> [player]");
         if (canReload(sender)) {
-            sender.sendMessage("§e/tcore reload [all|config|drops|stations|stats|whistle|lorestones]");
+            sender.sendMessage("§e/tcore reload [all|config|drops|stations|stats|whistle|lorestones|tfmc]");
         }
         if (sender.hasPermission(ADMIN_PERMISSION)) {
             sender.sendMessage("§e/tcore stones give <lorestone|namestone> [player] [amount]");

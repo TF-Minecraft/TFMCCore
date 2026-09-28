@@ -1,8 +1,13 @@
 package net.tfminecraft.tfmccore;
 
 import java.io.File;
+import java.time.Clock;
+import java.util.Set;
+import java.util.Random;
 
 import org.bukkit.plugin.java.JavaPlugin;
+
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 
 import net.tfminecraft.tlibs.database.SqliteProvider;
 import net.tfminecraft.tfmccore.commands.CoreCommands;
@@ -32,6 +37,10 @@ import net.tfminecraft.tfmccore.stats.categories.vehicles.VehiclesStatConfig;
 import net.tfminecraft.tfmccore.stones.LorestoneConfigLoader;
 import net.tfminecraft.tfmccore.stones.StoneItems;
 import net.tfminecraft.tfmccore.stones.StoneListener;
+import net.tfminecraft.tfmccore.tfmc.BukkitTfmcActions;
+import net.tfminecraft.tfmccore.tfmc.TfmcCommand;
+import net.tfminecraft.tfmccore.tfmc.TfmcConfig;
+import net.tfminecraft.tfmccore.tfmc.TfmcCooldowns;
 import net.tfminecraft.tfmccore.whistle.WhistleConfigLoader;
 import net.tfminecraft.tfmccore.whistle.WhistleListener;
 
@@ -47,6 +56,7 @@ public class TFMCCore extends JavaPlugin{
     private final AdvancedCraftingStatConfig advancedCraftingStatConfig = new AdvancedCraftingStatConfig();
     private final SkillsStatConfig skillsStatConfig = new SkillsStatConfig();
     private final FactionsStatConfig factionsStatConfig = new FactionsStatConfig();
+    private final TfmcConfig tfmcConfig = new TfmcConfig();
 
     private final CoreManager coreManager = new CoreManager();
     private final StationManager stationManager = new StationManager();
@@ -112,6 +122,28 @@ public class TFMCCore extends JavaPlugin{
         SilentPermissionCommand silentPermission = new SilentPermissionCommand();
         getCommand("silentpermission").setExecutor(silentPermission);
         getCommand("silentpermission").setTabCompleter(silentPermission);
+        registerTfmcCommand();
+    }
+
+    private void registerTfmcCommand() {
+        TfmcCooldowns cooldowns = new TfmcCooldowns(new File(getDataFolder(), "tfmc-cooldowns.yml"),
+                Set.of(TfmcCommand.BOOSTER_COOLDOWN), System::currentTimeMillis);
+        if (cooldowns.exists()) {
+            cooldowns.load();
+        } else {
+            // First start after the move from ConditionalEvents: keep running booster cooldowns
+            String event = tfmcConfig.string("booster.import-conditionalevents-event");
+            File players = new File(getDataFolder().getParentFile(), "ConditionalEvents/players");
+            if (!event.isEmpty() && players.isDirectory()) {
+                int imported = cooldowns.importConditionalEvents(players, event, TfmcCommand.BOOSTER_COOLDOWN);
+                getLogger().info("Imported " + imported + " booster cooldowns from ConditionalEvents");
+            }
+            cooldowns.save();
+        }
+        TfmcCommand tfmc = new TfmcCommand(tfmcConfig, cooldowns, new BukkitTfmcActions(this),
+                Clock.systemDefaultZone(), new Random());
+        getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
+                event -> event.registrar().register(tfmc.build(), "TFMC player commands"));
     }
 
     @Override
@@ -148,7 +180,12 @@ public class TFMCCore extends JavaPlugin{
         ok &= reloadWhistleConfig();
         ok &= reloadStonesConfig();
         ok &= reloadStatsConfigs();
+        ok &= reloadTfmcConfig();
         return ok;
+    }
+
+    public boolean reloadTfmcConfig() {
+        return tfmcConfig.load(new File(getDataFolder(), "tfmc.yml"));
     }
 
     public boolean reloadAll() {
@@ -253,7 +290,8 @@ public class TFMCCore extends JavaPlugin{
                 "skillsstats.yml",
                 "factionsstats.yml",
                 "animal-whistle-config.yml",
-                "lorestones-config.yml"
+                "lorestones-config.yml",
+                "tfmc.yml"
         };
 
         for (String s : files) {
