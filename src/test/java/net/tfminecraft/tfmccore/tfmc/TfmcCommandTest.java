@@ -253,7 +253,9 @@ class TfmcCommandTest {
         assertFalse(visible(steve).contains("worldboss"));
 
         enableDevContent();
-        assertTrue(visible(steve).containsAll(List.of("tutorial", "parrot", "unparrot", "worldboss")));
+        assertTrue(visible(steve).containsAll(List.of("tutorial", "unparrot", "worldboss")));
+        assertFalse(visible(steve).contains("parrot"));
+        assertTrue(visible(player("Donor", "group.ascended")).contains("parrot"));
     }
 
     @Test
@@ -273,6 +275,13 @@ class TfmcCommandTest {
         run(steve, "tfmc tutorial sitting clear");
         assertEquals(9, console.size());
 
+        console.clear();
+        run(steve, "tfmc tutorial fishing clear");
+        assertEquals(List.of(
+                "mi take FISHING_RODS FISHING_ROD Steve 1",
+                "clear Steve minecraft:shears[minecraft:custom_data~{CustomFishing:{id:\"iron_hook\"}}] 1",
+                "clear Steve minecraft:paper[minecraft:custom_data~{CustomFishing:{id:\"fish_bait\"}}] 1"), console);
+
         run(steve, "tfmc tutorial bogus clear");
         assertEquals(List.of("There is no tutorial called bogus."), steve.messages);
     }
@@ -280,7 +289,7 @@ class TfmcCommandTest {
     @Test
     void parrotFliesBrieflyAndRestoresFlight() throws Exception {
         enableDevContent();
-        TestPlayer steve = player("Steve");
+        TestPlayer steve = player("Steve", "group.ascended");
 
         run(steve, "tfmc parrot");
         assertEquals(List.of("libsdisguises:disguiseplayer Steve parrot setVariant GRAY setExpires 20s"), console);
@@ -304,7 +313,7 @@ class TfmcCommandTest {
     @Test
     void unparrotAndLeavingEndTheFlightEarly() throws Exception {
         enableDevContent();
-        TestPlayer steve = player("Steve");
+        TestPlayer steve = player("Steve", "group.ascended");
 
         run(steve, "tfmc unparrot");
         assertEquals(List.of("You are not a parrot."), steve.messages);
@@ -315,7 +324,7 @@ class TfmcCommandTest {
         assertEquals(List.of("start Steve 0.01", "end Steve"), flights);
         assertEquals(1, cancelled);
 
-        TestPlayer alex = player("Alex");
+        TestPlayer alex = player("Alex", "group.ascended");
         run(alex, "tfmc parrot");
         command.onQuit(alex.player);
         assertEquals("end Alex", flights.get(3));

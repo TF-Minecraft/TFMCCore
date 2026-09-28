@@ -216,8 +216,10 @@ tutorials:
       name: Fishing
       clear:
         - "mi take FISHING_RODS FISHING_ROD <player> 1"
-        - "clear <player> shears 1"
-        - "clear <player> paper 1"
+        # The Iron Hook and Fish Bait are CustomFishing items built on shears and paper;
+        # match their CustomFishing id so ordinary shears and paper are left alone
+        - 'clear <player> minecraft:shears[minecraft:custom_data~{CustomFishing:{id:"iron_hook"}}] 1'
+        - 'clear <player> minecraft:paper[minecraft:custom_data~{CustomFishing:{id:"fish_bait"}}] 1'
     guns:
       name: Guns
       clear:
@@ -278,8 +280,8 @@ tutorials:
 # /tfmc parrot disguises the player as a parrot and lets them fly briefly; /tfmc unparrot ends it early.
 parrot:
   enabled: false
-  # Any of these; leave empty for everyone.
-  permissions: []
+  # Any of these; leave empty for everyone. Legacy also holds group.ascended.
+  permissions: [group.ascended]
   cooldown-seconds: 300
   duration-seconds: 20
   # Bukkit fly speed (default 0.1); 0.01 matches the old "flyspeed fly 0.1".
