@@ -172,3 +172,135 @@ posters:
   Zerratoris6: "images create https://cdn.imgchest.com/files/yd5cemzr9v4.jpg 42.74553571428"
   Zerratoris7: "images create https://cdn.imgchest.com/files/7951abcc2f81.jpg 42.74553571428"
   Zerratoris8: "images create https://cdn.imgchest.com/files/c34edb81f614.jpg 42.74553571428"
+
+# ---------------------------------------------------------------------------
+# Content still being built on dev. Each section is hidden until enabled: true.
+# ---------------------------------------------------------------------------
+
+# /tfmc tutorial <name> clear takes back the items a tutorial lantern handed out.
+tutorials:
+  enabled: false
+  cooldown-seconds: 10
+  cleared: "<gray><i>Cleared inventory of items from <name> Tutorial"
+  unknown: "<red>There is no tutorial called <name>."
+  list:
+    archaeology:
+      name: Archaeology
+      clear:
+        - "mi take TOOLS ARCHAEO_TRACKER <player> 1"
+        - "mi take TOOLS ARCHAEO_PROSPECT <player> 1"
+        - "mi take TOOLS ARCHAEO_ESTABLISH <player> 1"
+        - "mi take TOOLS ARCHEOLOGY_HANDPICK <player> 1"
+        - "mi take TOOLS ARCHAEO_PENCIL <player> 1"
+        - "clear <player> brush 1"
+        - "clear <player> paper 1"
+        - "clear <player> water_bucket 1"
+        - "clear <player> bucket 1"
+        - "clear <player> feather 1"
+        - "iaremove <player> tfmc:archeology_cabinet 1 silent"
+    cooking:
+      name: Cooking
+      clear:
+        - "clear <player> carrot 2"
+        - "iaremove <player> tfmc_cooking:cutting_knife 1 silent"
+        - "iaremove <player> tfmc_cooking:cutting_board 1 silent"
+        - "iaremove <player> tfmc_cooking:frying_pan 1 silent"
+        - "iaremove <player> tfmc_cooking:oven_bottom 1 silent"
+        - "clear <player> oak_log 6"
+        - "clear <player> flint_and_steel 1"
+    factions:
+      name: Factions
+      clear:
+        - "clear <player> chest 1"
+    fishing:
+      name: Fishing
+      clear:
+        - "mi take FISHING_RODS FISHING_ROD <player> 1"
+        - "clear <player> shears 1"
+        - "clear <player> paper 1"
+    guns:
+      name: Guns
+      clear:
+        - "clear <player> iron_ingot 10"
+        - "mi take UTILS PEBBLESHOT <player> 16"
+    instruments:
+      name: Instruments
+      clear:
+        - "mi take INSTRUMENTS LUTE <player> 1"
+        - "mi take INSTRUMENTS FLUTE <player> 1"
+    magic:
+      name: Magic
+      clear:
+        - "clear <player> iron_ingot 4"
+        - "clear <player> stick 2"
+        - "clear <player> book 2"
+        - "mi take CURRENCY ENCHANTED_DUST <player> 6"
+        - "mi take OSENI_RUNES RUNE_OF_FIRE_SHARD <player> 1"
+        - "mi take MATERIALS ENCHANTED_CHARGE_1 <player> 1"
+        - "iaremove <player> tfmc:pedestal 1 silent"
+    marketblock:
+      name: Market Block
+      clear:
+        - "iaremove <player> tfmc:market_block 1 silent"
+        - "clear <player> wheat 128"
+    nodes:
+      name: Resource Node
+      clear:
+        - "iaremove <player> tfmc:general_node 1 silent"
+        - "clear <player> barrel 1"
+        - "clear <player> hopper 1"
+        - "clear <player> cobblestone 16"
+        - "clear <player> stick 16"
+    recycler:
+      name: Recycler
+      clear:
+        - "clear <player> iron_sword 1"
+        - "clear <player> iron_ingot 2"
+    sitting:
+      name: Sitting
+      clear:
+        - "clear <player> oak_stairs 1"
+        - "clear <player> white_carpet 1"
+    thievery:
+      name: Thievery
+      clear:
+        - "mi take LOCKPICKS BASIC_LOCKPICK <player> 1"
+        - "mi take KEYS IRON_KEY <player> 1"
+        - "clear <player> chest 1"
+        - "rpcharacter removetrait <player> thief"
+    woodworking:
+      name: Woodworking
+      clear:
+        - "mi take TOOLS SKIN_BRANDING_TOOL <player> 1"
+        - "mi take TOOLS ENGRAVING_TOOL <player> 1"
+        - "mi take MATERIALS SILK <player> 2"
+
+# /tfmc parrot disguises the player as a parrot and lets them fly briefly; /tfmc unparrot ends it early.
+parrot:
+  enabled: false
+  # Any of these; leave empty for everyone.
+  permissions: []
+  cooldown-seconds: 300
+  duration-seconds: 20
+  # Bukkit fly speed (default 0.1); 0.01 matches the old "flyspeed fly 0.1".
+  fly-speed: 0.01
+  disguise: "libsdisguises:disguiseplayer <player> parrot setVariant GRAY setExpires <seconds>s"
+  undisguise: "libsdisguises:undisguiseplayer <player>"
+  started: "<gray><i>You are now a <#eeeeee>Parrot"
+  ended: "<gray><i>You are no longer a <#eeeeee>Parrot"
+  already: "<red>You are already a parrot. Use <#eeeeee>/tfmc unparrot</#eeeeee> to stop."
+  not-a-parrot: "<red>You are not a parrot."
+  cooldown: "<red>You need to wait <yellow><time></yellow> before turning into a <#eeeeee><i>Parrot</i></#eeeeee> again."
+
+worldboss:
+  enabled: false
+  info:
+    - "<dark_purple>━━━━━━━━━━━━━━━"
+    - "<aqua><b>TFMC Roleplay World Boss Info"
+    - ""
+    - "<yellow>There are several world bosses in TFMC. These are hard fights that can grant powerful loot. To start a boss fight you will need the corresponding boss ticket. Each person that wants to take part in the fight will need to use one."
+    - ""
+    - "<yellow>You can get the tickets in the Voting Crates. To use a ticket you will need to right click 2 times (2nd time to confirm). Once you are in the lobby before the fight, wait for everyone before pressing the soul lantern to start the fight."
+    - ""
+    - "<yellow>Each boss can only be fought by one group at the same time, so if there is no lantern you will need to wait for the current group to finish. There is no cooldown for fighting the different bosses, but you can always run into the danger of dying. (You can always use an Insurance Ticket if you die)."
+    - "<dark_purple>━━━━━━━━━━━━━━━"

@@ -49,12 +49,17 @@ class TfmcCommandTest {
     private final List<String> permissionChanges = new ArrayList<>();
     private final List<String> trackSteps = new ArrayList<>();
     private final List<Material> given = new ArrayList<>();
+    private final List<String> flights = new ArrayList<>();
+    private final List<Long> scheduledTicks = new ArrayList<>();
+    private final List<Runnable> scheduled = new ArrayList<>();
+    private int cancelled;
     private final List<Runnable> mainThread = new ArrayList<>();
     private int packsSent;
     private long clock = NOW.toEpochMilli();
 
     private CommandDispatcher<CommandSourceStack> dispatcher;
     private TfmcConfig config;
+    private TfmcCommand command;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -72,7 +77,7 @@ class TfmcCommandTest {
                 return 0;
             }
         };
-        TfmcCommand command = new TfmcCommand(config, cooldowns, new RecordingActions(),
+        command = new TfmcCommand(config, cooldowns, new RecordingActions(),
                 Clock.fixed(NOW, ZoneOffset.UTC), firstMask, mainThread::add);
         dispatcher = new CommandDispatcher<>();
         dispatcher.getRoot().addChild(command.build());
@@ -241,6 +246,94 @@ class TfmcCommandTest {
     }
 
     @Test
+    void devContentIsHiddenUntilEnabled() throws Exception {
+        TestPlayer steve = player("Steve");
+        assertFalse(visible(steve).contains("tutorial"));
+        assertFalse(visible(steve).contains("parrot"));
+        assertFalse(visible(steve).contains("worldboss"));
+
+        enableDevContent();
+        assertTrue(visible(steve).containsAll(List.of("tutorial", "parrot", "unparrot", "worldboss")));
+    }
+
+    @Test
+    void tutorialClearTakesBackTheTutorialItems() throws Exception {
+        enableDevContent();
+        TestPlayer steve = player("Steve");
+
+        run(steve, "tfmc tutorial cooking clear");
+        assertEquals("clear Steve carrot 2", console.get(0));
+        assertEquals(7, console.size());
+        assertEquals(List.of("Cleared inventory of items from Cooking Tutorial"), steve.messages);
+
+        run(steve, "tfmc tutorial Cooking clear");
+        assertEquals(7, console.size());
+        assertEquals("You need to wait 10s before using this again.", steve.messages.get(0));
+
+        run(steve, "tfmc tutorial sitting clear");
+        assertEquals(9, console.size());
+
+        run(steve, "tfmc tutorial bogus clear");
+        assertEquals(List.of("There is no tutorial called bogus."), steve.messages);
+    }
+
+    @Test
+    void parrotFliesBrieflyAndRestoresFlight() throws Exception {
+        enableDevContent();
+        TestPlayer steve = player("Steve");
+
+        run(steve, "tfmc parrot");
+        assertEquals(List.of("libsdisguises:disguiseplayer Steve parrot setVariant GRAY setExpires 20s"), console);
+        assertEquals(List.of("start Steve 0.01"), flights);
+        assertEquals(List.of(400L), scheduledTicks);
+        assertEquals(List.of("You are now a Parrot"), steve.messages);
+
+        run(steve, "tfmc parrot");
+        assertEquals("You are already a parrot. Use /tfmc unparrot to stop.", steve.messages.get(0));
+
+        steve.messages.clear();
+        scheduled.remove(0).run();
+        assertEquals(List.of("start Steve 0.01", "end Steve"), flights);
+        assertEquals(List.of("You are no longer a Parrot"), steve.messages);
+        assertEquals(1, console.size());
+
+        run(steve, "tfmc parrot");
+        assertTrue(steve.messages.get(0).startsWith("You need to wait 5m"));
+    }
+
+    @Test
+    void unparrotAndLeavingEndTheFlightEarly() throws Exception {
+        enableDevContent();
+        TestPlayer steve = player("Steve");
+
+        run(steve, "tfmc unparrot");
+        assertEquals(List.of("You are not a parrot."), steve.messages);
+
+        run(steve, "tfmc parrot");
+        run(steve, "tfmc unparrot");
+        assertEquals("libsdisguises:undisguiseplayer Steve", console.get(1));
+        assertEquals(List.of("start Steve 0.01", "end Steve"), flights);
+        assertEquals(1, cancelled);
+
+        TestPlayer alex = player("Alex");
+        run(alex, "tfmc parrot");
+        command.onQuit(alex.player);
+        assertEquals("end Alex", flights.get(3));
+        assertEquals(2, cancelled);
+    }
+
+    @Test
+    void worldbossInfoExplainsTheBossFights() throws Exception {
+        enableDevContent();
+        TestPlayer steve = player("Steve");
+
+        run(steve, "tfmc worldboss info");
+
+        assertEquals(9, steve.messages.size());
+        assertEquals("TFMC Roleplay World Boss Info", steve.messages.get(1));
+    }
+
+    @Test
     void consoleIsToldTheCommandIsForPlayers() throws Exception {
         ConsoleCommandSender sender = mock(ConsoleCommandSender.class);
         List<String> messages = capture(sender);
@@ -248,6 +341,11 @@ class TfmcCommandTest {
         dispatcher.execute("tfmc date", source(sender));
 
         assertEquals(List.of("Only players can use this command."), messages);
+    }
+
+    private void enableDevContent() throws Exception {
+        config.loadFromString(Files.readString(Path.of("src/main/resources/tfmc.yml"))
+                .replace("  enabled: false", "  enabled: true"));
     }
 
     private List<String> visible(TestPlayer player, String... path) {
@@ -329,6 +427,24 @@ class TfmcCommandTest {
         public CompletableFuture<Void> setPermission(Player player, String permission, boolean granted) {
             permissionChanges.add(player.getName() + " " + permission + " " + granted);
             return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public FlightState startFlight(Player player, float speed) {
+            flights.add("start " + player.getName() + " " + speed);
+            return new FlightState(false, false, 0.1f);
+        }
+
+        @Override
+        public void endFlight(Player player, FlightState previous) {
+            flights.add("end " + player.getName());
+        }
+
+        @Override
+        public Runnable later(long ticks, Runnable task) {
+            scheduledTicks.add(ticks);
+            scheduled.add(task);
+            return () -> cancelled++;
         }
 
         @Override
