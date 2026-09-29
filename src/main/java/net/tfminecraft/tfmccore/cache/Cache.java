@@ -15,6 +15,7 @@ public class Cache {
     public static boolean horseArchery;
     public static boolean preventGolemScrape;
     public static boolean dropsDebug;
+    public static boolean xaeroFairPlay = true;
 
     public static int armourTime;
 

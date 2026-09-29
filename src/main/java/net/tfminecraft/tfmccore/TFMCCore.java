@@ -46,6 +46,7 @@ import net.tfminecraft.tfmccore.tfmc.TfmcConfig;
 import net.tfminecraft.tfmccore.tfmc.TfmcCooldowns;
 import net.tfminecraft.tfmccore.whistle.WhistleConfigLoader;
 import net.tfminecraft.tfmccore.whistle.WhistleListener;
+import net.tfminecraft.tfmccore.xaero.XaeroFairPlayListener;
 
 public class TFMCCore extends JavaPlugin{
     private static TFMCCore plugin;
@@ -292,6 +293,9 @@ public class TFMCCore extends JavaPlugin{
         getServer().getPluginManager().registerEvents(stationManager, this);
         getServer().getPluginManager().registerEvents(coreManager, this);
         getServer().getPluginManager().registerEvents(new GolemListener(), this);
+        getServer().getPluginManager().registerEvents(new XaeroFairPlayListener(this), this);
+        // Covers a plugin reload; on a normal start nobody is online yet
+        getServer().getOnlinePlayers().forEach(XaeroFairPlayListener::send);
     }
 
     public void createConfigs() {

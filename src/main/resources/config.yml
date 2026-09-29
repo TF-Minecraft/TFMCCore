@@ -15,6 +15,8 @@ allow-enchanting: false
 limit-shields: true
 horse-archery: false
 prevent-golem-scrape: true
+# Send Xaero's Minimap fair-play code (no entity radar or cave mode) on every join.
+xaero-fair-play: true
 
 drops-debug: true
 
