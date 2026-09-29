@@ -33,6 +33,7 @@ public class ConfigLoader {
         Cache.horseArchery = config.getBoolean("horse-archery", true);
         Cache.preventGolemScrape = config.getBoolean("prevent-golem-scrape", true);
         Cache.dropsDebug = config.getBoolean("drops-debug", true);
+        Cache.xaeroFairPlay = config.getBoolean("xaero-fair-play", true);
 
         Cache.armourTime = config.getInt("armour-time", 7);
 
