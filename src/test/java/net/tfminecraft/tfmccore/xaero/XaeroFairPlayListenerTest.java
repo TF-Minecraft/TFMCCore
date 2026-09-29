@@ -46,7 +46,7 @@ class XaeroFairPlayListenerTest {
         new XaeroFairPlayListener(plugin).onJoin(new PlayerJoinEvent(player, (Component) null));
 
         ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
-        verify(scheduler).runTaskLater(eq(plugin), task.capture(), eq(XaeroFairPlayListener.JOIN_DELAY_TICKS));
+        verify(scheduler).runTaskLater(eq(plugin), task.capture(), eq(20L));
         verify(player, never()).sendMessage(any(Component.class));
         task.getValue().run();
 
