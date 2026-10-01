@@ -14,9 +14,9 @@ public final class WhistleConfig {
     public static String soundName = "ITEM_GOAT_HORN_SOUND_6";
     public static float soundVolume = 4.0f;
     public static float soundPitch = 2.0f;
-    public static String highlightedMessage = "&aHighlighted &6%count% &aanimals nearby.";
-    public static String noAnimalsMessage = "&7No animals found nearby.";
-    public static String cooldownMessage = "&7The whistle is on cooldown for another &6%seconds%s&7.";
+    public static String highlightedMessage = "&6%count% &aanimals nearby answer your whistle.";
+    public static String noAnimalsMessage = "&7No animals answer your whistle.";
+    public static String cooldownMessage = "&7You are still catching your breath. Try again in &6%seconds%s&7.";
 
     private WhistleConfig() {}
 }

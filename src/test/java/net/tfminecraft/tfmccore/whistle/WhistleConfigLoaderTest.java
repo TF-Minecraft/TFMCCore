@@ -28,9 +28,9 @@ class WhistleConfigLoaderTest {
         WhistleConfig.soundName = "ITEM_GOAT_HORN_SOUND_6";
         WhistleConfig.soundVolume = 4.0f;
         WhistleConfig.soundPitch = 2.0f;
-        WhistleConfig.highlightedMessage = "&aHighlighted &6%count% &aanimals nearby.";
-        WhistleConfig.noAnimalsMessage = "&7No animals found nearby.";
-        WhistleConfig.cooldownMessage = "&7The whistle is on cooldown for another &6%seconds%s&7.";
+        WhistleConfig.highlightedMessage = "&6%count% &aanimals nearby answer your whistle.";
+        WhistleConfig.noAnimalsMessage = "&7No animals answer your whistle.";
+        WhistleConfig.cooldownMessage = "&7You are still catching your breath. Try again in &6%seconds%s&7.";
     }
 
     @Test
@@ -54,9 +54,9 @@ class WhistleConfigLoaderTest {
                   volume: 2.5
                   pitch: 1.5
                 messages:
-                  highlighted: "&aHighlighted &6%count% &aanimals nearby."
-                  no-animals: "&7No animals found nearby."
-                  cooldown: "&7The whistle is on cooldown for another &6%seconds%s&7."
+                  highlighted: "&6%count% &aanimals nearby answer your whistle."
+                  no-animals: "&7No animals answer your whistle."
+                  cooldown: "&7You are still catching your breath. Try again in &6%seconds%s&7."
                 """);
 
         assertTrue(WhistleConfigLoader.load(configPath.toFile()));
@@ -74,9 +74,9 @@ class WhistleConfigLoaderTest {
         assertEquals("ITEM_GOAT_HORN_SOUND_6", WhistleConfig.soundName);
         assertEquals(2.5f, WhistleConfig.soundVolume);
         assertEquals(1.5f, WhistleConfig.soundPitch);
-        assertEquals("&aHighlighted &6%count% &aanimals nearby.", WhistleConfig.highlightedMessage);
-        assertEquals("&7No animals found nearby.", WhistleConfig.noAnimalsMessage);
-        assertEquals("&7The whistle is on cooldown for another &6%seconds%s&7.", WhistleConfig.cooldownMessage);
+        assertEquals("&6%count% &aanimals nearby answer your whistle.", WhistleConfig.highlightedMessage);
+        assertEquals("&7No animals answer your whistle.", WhistleConfig.noAnimalsMessage);
+        assertEquals("&7You are still catching your breath. Try again in &6%seconds%s&7.", WhistleConfig.cooldownMessage);
     }
 
     @Test
@@ -128,9 +128,9 @@ class WhistleConfigLoaderTest {
         assertEquals("ITEM_GOAT_HORN_SOUND_6", WhistleConfig.soundName);
         assertEquals(4.0f, WhistleConfig.soundVolume);
         assertEquals(2.0f, WhistleConfig.soundPitch);
-        assertEquals("&aHighlighted &6%count% &aanimals nearby.", WhistleConfig.highlightedMessage);
-        assertEquals("&7No animals found nearby.", WhistleConfig.noAnimalsMessage);
-        assertEquals("&7The whistle is on cooldown for another &6%seconds%s&7.", WhistleConfig.cooldownMessage);
+        assertEquals("&6%count% &aanimals nearby answer your whistle.", WhistleConfig.highlightedMessage);
+        assertEquals("&7No animals answer your whistle.", WhistleConfig.noAnimalsMessage);
+        assertEquals("&7You are still catching your breath. Try again in &6%seconds%s&7.", WhistleConfig.cooldownMessage);
         assertTrue(WhistleConfig.whitelistedAnimals.contains(EntityType.HORSE));
     }
 }

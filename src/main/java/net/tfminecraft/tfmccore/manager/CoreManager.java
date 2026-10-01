@@ -84,7 +84,7 @@ public class CoreManager implements Listener{
 	public void blockConsume(PlayerItemConsumeEvent e) {
 		if(Cache.blockedConsume.contains(e.getItem().getType())) {
 			e.setCancelled(true);
-			e.getPlayer().sendMessage("§cCannot consume this item!");
+			e.getPlayer().sendMessage("§cYou cannot eat or drink that!");
 		}
 	}
 	@EventHandler
