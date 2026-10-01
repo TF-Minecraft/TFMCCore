@@ -28,6 +28,6 @@ sound:
 
 # Player feedback messages (& color codes, empty = don't send)
 messages:
-  highlighted: "&aHighlighted &6%count% &aanimals nearby."
-  no-animals: "&7No animals found nearby."
-  cooldown: "&7The whistle is on cooldown for another &6%seconds%s&7."
+  highlighted: "&6%count% &aanimals nearby answer your whistle."
+  no-animals: "&7No animals answer your whistle."
+  cooldown: "&7You are still catching your breath. Try again in &6%seconds%s&7."
