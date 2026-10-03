@@ -21,6 +21,20 @@ TFMC Core works alongside the server's specialist plugins, connecting their syst
 
 Technical documentation is maintained in [TF-Minecraft/Docs](https://github.com/TF-Minecraft/Docs).
 
+## Tests
+
+With Java 21 and the pinned plugin dependencies installed (see the build workflow), run:
+
+```sh
+mvn -B --no-transfer-progress clean verify
+```
+
+JUnit 5 and Mockito tests cover drops, statistics storage, stone and whistle
+configuration, `/tfmc` commands, the Xaero fair-play listener and resource-pack
+compaction and delivery, with server and plugin APIs mocked. CI runs the same
+command on every push and pull request to `main` and uploads the Surefire reports;
+no coverage gate is enforced. The suite does not start a live Paper server.
+
 ## License
 
 Copyright (c) 2026 TF-Minecraft contributors.
@@ -28,6 +42,3 @@ Copyright (c) 2026 TF-Minecraft contributors.
 TF-Minecraft-authored material in this repository is licensed under the
 [Artistic License 2.0](LICENSE). Third-party dependencies and bundled material
 retain their own licenses.
-
-Opt-in multipart resource-pack generation, delivery, deployment, and rollback are
-covered in [RESOURCE_PACK.md](RESOURCE_PACK.md).
