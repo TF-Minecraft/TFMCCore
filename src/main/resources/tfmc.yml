@@ -9,6 +9,14 @@ messages:
   cooldown: "<red>You need to wait <yellow><time></yellow> before using this again."
   failed: "<red>Something went wrong. Please try again or open a Ticket."
 
+# Literal paths after /tfmc handled by ConditionalEvents on this server, e.g.
+# ["archaeology clear", "kit iron", "kit iron remove"]. Restart after changing
+# this list. CE still owns execution, permissions, conditions and cooldowns.
+# Existing TFMCCore command handlers and permission gates are preserved.
+# A final <args> accepts free-form arguments, e.g. "roll <args>".
+conditional-events:
+  commands: []
+
 tips:
   # Players holding this permission (in the current server context) do not receive chat tips.
   permission: tips.off
