@@ -29,6 +29,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.tree.LiteralCommandNode;
+import com.mojang.brigadier.tree.CommandNode;
 
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
@@ -154,7 +155,39 @@ public final class TfmcCommand {
                             return player(p -> poster(p, name)).run(context);
                         })));
 
-        return root.build();
+        LiteralCommandNode<CommandSourceStack> tree = root.build();
+        // ConditionalEvents receives PlayerCommandPreprocessEvent before Brigadier executes.
+        // These paths make its commands visible to the client without running them twice.
+        for (String path : config.lines("conditional-events.commands")) {
+            if (!path.matches("[a-z0-9_+-]+(?: [a-z0-9_+-]+)*(?: <args>)?")) {
+                LOGGER.warning("Invalid conditional-events command path: " + path);
+                continue;
+            }
+            CommandNode<CommandSourceStack> parent = tree;
+            String[] parts = path.split(" ");
+            for (int i = 0; i < parts.length; i++) {
+                CommandNode<CommandSourceStack> child = parent.getChild(parts[i]);
+                if (child == null) {
+                    if (parts[i].equals("<args>")) {
+                        parent.addChild(Commands.argument("args", StringArgumentType.greedyString())
+                                .executes(context -> Command.SINGLE_SUCCESS).build());
+                        break;
+                    }
+                    var node = Commands.literal(parts[i]);
+                    if (i == parts.length - 1) {
+                        node.executes(context -> Command.SINGLE_SUCCESS);
+                    }
+                    child = node.build();
+                    parent.addChild(child);
+                } else if (i == parts.length - 1 && child.getCommand() == null) {
+                    // Merge only the endpoint; retain existing permission requirements.
+                    parent.addChild(Commands.literal(parts[i])
+                            .executes(context -> Command.SINGLE_SUCCESS).build());
+                }
+                parent = child;
+            }
+        }
+        return tree;
     }
 
     private void tips(Player player, boolean disable) {
