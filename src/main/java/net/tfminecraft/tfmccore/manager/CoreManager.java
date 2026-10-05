@@ -5,6 +5,9 @@ import java.util.List;
 
 import org.bukkit.Material;
 import org.bukkit.block.data.Ageable;
+import org.bukkit.damage.DamageSource;
+import org.bukkit.damage.DamageType;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -45,17 +48,39 @@ public class CoreManager implements Listener{
 		p.addPotionEffect(weak);
 	}
 
-    @EventHandler
+    private static boolean redealingShieldHit;
+
+    @EventHandler(ignoreCancelled = true)
 	public void blockShield(EntityDamageByEntityEvent e) {
-        if(!Cache.limitShields) return;
+        if(!Cache.limitShields || redealingShieldHit) return;
 		if(e.getEntity() instanceof Player ) {
 		    Player player = (Player) e.getEntity();
 		    if(player.isBlocking() == true) {
-		        player.damage(e.getDamage());
 		        e.setCancelled(true);
+		        // Keep the attacker on the hit so kill credit and nonlethal PvP still see who did it.
+		        redealingShieldHit = true;
+		        try {
+		            player.damage(e.getDamage(), shieldPiercingSource(e.getDamageSource()));
+		        } finally {
+		            redealingShieldHit = false;
+		        }
 		    }
 		}
 	}
+
+    /** Generic damage goes through shields; the attacker and projectile stay on the source. */
+    static DamageSource shieldPiercingSource(DamageSource hit) {
+        return withHitEntities(DamageSource.builder(DamageType.GENERIC), hit);
+    }
+
+    /** Paper refuses a causing entity without a direct one, so melee uses the attacker for both. */
+    static DamageSource withHitEntities(DamageSource.Builder builder, DamageSource hit) {
+        Entity causing = hit.getCausingEntity();
+        Entity direct = hit.getDirectEntity() != null ? hit.getDirectEntity() : causing;
+        if(direct != null) builder.withDirectEntity(direct);
+        if(causing != null) builder.withCausingEntity(causing);
+        return builder.build();
+    }
 
     @EventHandler
 	public void brewEvent(BrewEvent e) {
