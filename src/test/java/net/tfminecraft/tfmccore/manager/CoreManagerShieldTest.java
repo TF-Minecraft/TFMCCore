@@ -3,7 +3,6 @@ package net.tfminecraft.tfmccore.manager;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -23,6 +22,7 @@ import net.tfminecraft.tfmccore.cache.Cache;
 
 class CoreManagerShieldTest {
     private final CoreManager manager = new CoreManager();
+    private final Player hitter = mock(Player.class);
 
     @BeforeEach void enableShieldLimit() {
         Cache.limitShields = true;
@@ -37,8 +37,8 @@ class CoreManagerShieldTest {
         when(victim.isBlocking()).thenReturn(true);
         DamageSource hit = mock(DamageSource.class), pierce = mock(DamageSource.class);
         EntityDamageByEntityEvent event = hitOn(victim, hit);
-        try (var core = mockStatic(CoreManager.class, CALLS_REAL_METHODS)) {
-            core.when(() -> CoreManager.shieldPiercingSource(hit)).thenReturn(pierce);
+        try (var core = mockStatic(CoreManager.class)) {
+            core.when(() -> CoreManager.shieldPiercingSource(hit, hitter)).thenReturn(pierce);
             manager.blockShield(event);
         }
         verify(event).setCancelled(true);
@@ -54,8 +54,8 @@ class CoreManagerShieldTest {
             manager.blockShield(redealt);
             return null;
         }).when(victim).damage(6.0, pierce);
-        try (var core = mockStatic(CoreManager.class, CALLS_REAL_METHODS)) {
-            core.when(() -> CoreManager.shieldPiercingSource(hit)).thenReturn(pierce);
+        try (var core = mockStatic(CoreManager.class)) {
+            core.when(() -> CoreManager.shieldPiercingSource(hit, hitter)).thenReturn(pierce);
             manager.blockShield(event);
             manager.blockShield(event);
         }
@@ -79,7 +79,7 @@ class CoreManagerShieldTest {
         DamageSource hit = mock(DamageSource.class), built = mock(DamageSource.class);
         when(hit.getCausingEntity()).thenReturn(attacker);
         DamageSource.Builder builder = builder(built);
-        assertSame(built, CoreManager.withHitEntities(builder, hit));
+        assertSame(built, CoreManager.withHitEntities(builder, hit, null));
         verify(builder).withDirectEntity(attacker);
         verify(builder).withCausingEntity(attacker);
     }
@@ -91,22 +91,34 @@ class CoreManagerShieldTest {
         when(hit.getCausingEntity()).thenReturn(shooter);
         when(hit.getDirectEntity()).thenReturn(arrow);
         DamageSource.Builder builder = builder(mock(DamageSource.class));
-        CoreManager.withHitEntities(builder, hit);
+        CoreManager.withHitEntities(builder, hit, null);
         verify(builder).withDirectEntity(arrow);
         verify(builder).withCausingEntity(shooter);
     }
 
     @Test void hitWithoutEntitiesStaysSourceless() {
         DamageSource.Builder builder = builder(mock(DamageSource.class));
-        CoreManager.withHitEntities(builder, mock(DamageSource.class));
+        CoreManager.withHitEntities(builder, mock(DamageSource.class), null);
         verify(builder, never()).withDirectEntity(any());
         verify(builder, never()).withCausingEntity(any());
+    }
+
+    @Test void eventDamagerStandsInWhenTheSourceHasNoDirectEntity() {
+        Player attacker = mock(Player.class);
+        DamageSource hit = mock(DamageSource.class);
+        when(hit.getCausingEntity()).thenReturn(attacker);
+        Arrow arrow = mock(Arrow.class);
+        DamageSource.Builder builder = builder(mock(DamageSource.class));
+        CoreManager.withHitEntities(builder, hit, arrow);
+        verify(builder).withDirectEntity(arrow);
+        verify(builder).withCausingEntity(attacker);
     }
 
     private EntityDamageByEntityEvent hitOn(Player victim, DamageSource source) {
         EntityDamageByEntityEvent event = mock(EntityDamageByEntityEvent.class);
         when(event.getEntity()).thenReturn(victim);
         when(event.getDamage()).thenReturn(6.0);
+        when(event.getDamager()).thenReturn(hitter);
         when(event.getDamageSource()).thenReturn(source);
         return event;
     }

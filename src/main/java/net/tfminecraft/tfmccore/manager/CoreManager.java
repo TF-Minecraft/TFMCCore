@@ -60,7 +60,7 @@ public class CoreManager implements Listener{
 		        // Keep the attacker on the hit so kill credit and nonlethal PvP still see who did it.
 		        redealingShieldHit = true;
 		        try {
-		            player.damage(e.getDamage(), shieldPiercingSource(e.getDamageSource()));
+		            player.damage(e.getDamage(), shieldPiercingSource(e.getDamageSource(), e.getDamager()));
 		        } finally {
 		            redealingShieldHit = false;
 		        }
@@ -69,14 +69,14 @@ public class CoreManager implements Listener{
 	}
 
     /** Generic damage goes through shields; the attacker and projectile stay on the source. */
-    static DamageSource shieldPiercingSource(DamageSource hit) {
-        return withHitEntities(DamageSource.builder(DamageType.GENERIC), hit);
+    static DamageSource shieldPiercingSource(DamageSource hit, Entity damager) {
+        return withHitEntities(DamageSource.builder(DamageType.GENERIC), hit, damager);
     }
 
     /** Paper refuses a causing entity without a direct one, so melee uses the attacker for both. */
-    static DamageSource withHitEntities(DamageSource.Builder builder, DamageSource hit) {
+    static DamageSource withHitEntities(DamageSource.Builder builder, DamageSource hit, Entity damager) {
         Entity causing = hit.getCausingEntity();
-        Entity direct = hit.getDirectEntity() != null ? hit.getDirectEntity() : causing;
+        Entity direct = hit.getDirectEntity() != null ? hit.getDirectEntity() : damager != null ? damager : causing;
         if(direct != null) builder.withDirectEntity(direct);
         if(causing != null) builder.withCausingEntity(causing);
         return builder.build();
