@@ -229,6 +229,20 @@ class LorestoneConfigLoaderTest {
     }
 
     @Test
+    void failedLiveReloadReportsTheMissingFileAndKeepsTheCurrentSettings() {
+        var plugin = org.mockito.Mockito.mock(net.tfminecraft.tfmccore.TFMCCore.class);
+        var logger = org.mockito.Mockito.mock(java.util.logging.Logger.class);
+        org.mockito.Mockito.when(plugin.getLogger()).thenReturn(logger);
+        LorestoneConfig.maxLength = 81;
+        try (var core = org.mockito.Mockito.mockStatic(net.tfminecraft.tfmccore.TFMCCore.class)) {
+            core.when(net.tfminecraft.tfmccore.TFMCCore::getInstance).thenReturn(plugin);
+            assertFalse(LorestoneConfigLoader.load(tempDir.resolve("missing.yml").toFile()));
+        }
+        assertEquals(81, LorestoneConfig.maxLength);
+        org.mockito.Mockito.verify(logger).severe(org.mockito.ArgumentMatchers.contains("Failed to load lorestones-config.yml"));
+    }
+
+    @Test
     void malformedYamlReturnsFalseAndLeavesConfigUnchanged() throws IOException {
         LorestoneConfig.lorestonePath = "unchanged.path";
         LorestoneConfig.maxLength = 77;

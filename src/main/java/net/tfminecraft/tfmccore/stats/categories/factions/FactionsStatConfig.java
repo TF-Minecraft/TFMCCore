@@ -15,15 +15,19 @@ public final class FactionsStatConfig {
     private final Map<String, String> labels = new HashMap<>();
 
     public void load(File configFile) {
-        labels.clear();
+        loadChecked(configFile);
+    }
 
+    public boolean loadChecked(File configFile) {
         FileConfiguration config = new YamlConfiguration();
         try {
             config.load(configFile);
         } catch (IOException | InvalidConfigurationException e) {
             e.printStackTrace();
-            return;
+            return false;
         }
+
+        Map<String, String> labels = new HashMap<>();
 
         if (config.isConfigurationSection("labels")) {
             for (String statKey : config.getConfigurationSection("labels").getKeys(false)) {
@@ -33,6 +37,9 @@ public final class FactionsStatConfig {
                 }
             }
         }
+        this.labels.clear();
+        this.labels.putAll(labels);
+        return true;
     }
 
     public String getLabel(String statKey) {

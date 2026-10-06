@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -20,17 +21,21 @@ public final class VehiclesStatConfig {
     private final Map<String, String> labels = new HashMap<>();
 
     public void load(File configFile) {
-        vehicleTypeToGroup.clear();
-        groupDeathToStatKey.clear();
-        labels.clear();
+        loadChecked(configFile);
+    }
 
+    public boolean loadChecked(File configFile) {
         FileConfiguration config = new YamlConfiguration();
         try {
             config.load(configFile);
         } catch (IOException | InvalidConfigurationException e) {
             e.printStackTrace();
-            return;
+            return false;
         }
+
+        Map<String, String> vehicleTypeToGroup = new HashMap<>();
+        Map<String, Map<String, String>> groupDeathToStatKey = new HashMap<>();
+        Map<String, String> labels = new HashMap<>();
 
         if (config.isConfigurationSection("groups")) {
             for (String group : config.getConfigurationSection("groups").getKeys(false)) {
@@ -39,7 +44,7 @@ public final class VehiclesStatConfig {
                     if (vehicleTypeId == null || vehicleTypeId.isBlank()) {
                         continue;
                     }
-                    vehicleTypeToGroup.put(vehicleTypeId.toLowerCase(), group.toLowerCase());
+                    vehicleTypeToGroup.put(vehicleTypeId.toLowerCase(Locale.ROOT), group.toLowerCase(Locale.ROOT));
                 }
             }
         }
@@ -47,13 +52,17 @@ public final class VehiclesStatConfig {
         if (config.isConfigurationSection("death-stats")) {
             for (String group : config.getConfigurationSection("death-stats").getKeys(false)) {
                 Map<String, String> deathMap = new HashMap<>();
-                for (String deathCause : config.getConfigurationSection("death-stats." + group).getKeys(false)) {
+                var deathSection = config.getConfigurationSection("death-stats." + group);
+                if (deathSection == null) {
+                    return false;
+                }
+                for (String deathCause : deathSection.getKeys(false)) {
                     String statKey = config.getString("death-stats." + group + "." + deathCause);
                     if (statKey != null && !statKey.isBlank()) {
-                        deathMap.put(deathCause.toLowerCase(), statKey);
+                        deathMap.put(deathCause.toLowerCase(Locale.ROOT), statKey);
                     }
                 }
-                groupDeathToStatKey.put(group.toLowerCase(), deathMap);
+                groupDeathToStatKey.put(group.toLowerCase(Locale.ROOT), deathMap);
             }
         }
 
@@ -65,6 +74,13 @@ public final class VehiclesStatConfig {
                 }
             }
         }
+        this.vehicleTypeToGroup.clear();
+        this.vehicleTypeToGroup.putAll(vehicleTypeToGroup);
+        this.groupDeathToStatKey.clear();
+        this.groupDeathToStatKey.putAll(groupDeathToStatKey);
+        this.labels.clear();
+        this.labels.putAll(labels);
+        return true;
     }
 
     public Optional<String> resolveStatKey(String vehicleTypeId, VehicleDeath deathCause) {
@@ -72,7 +88,7 @@ public final class VehiclesStatConfig {
             return Optional.empty();
         }
 
-        String group = vehicleTypeToGroup.get(vehicleTypeId.toLowerCase());
+        String group = vehicleTypeToGroup.get(vehicleTypeId.toLowerCase(Locale.ROOT));
         if (group == null) {
             return Optional.empty();
         }
@@ -82,7 +98,7 @@ public final class VehiclesStatConfig {
             return Optional.empty();
         }
 
-        String statKey = deathMap.get(deathCause.name().toLowerCase());
+        String statKey = deathMap.get(deathCause.name().toLowerCase(Locale.ROOT));
         if (statKey == null || statKey.isBlank()) {
             return Optional.empty();
         }

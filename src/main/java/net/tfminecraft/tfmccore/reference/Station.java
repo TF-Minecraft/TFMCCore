@@ -1,5 +1,7 @@
 package net.tfminecraft.tfmccore.reference;
 
+import java.util.Locale;
+
 public class Station {
 	public enum Click {
 		RIGHT,
@@ -39,7 +41,7 @@ public class Station {
 		if (raw == null || raw.isBlank()) {
 			return Click.RIGHT;
 		}
-		String key = raw.trim().toLowerCase().replace('-', '_');
+		String key = raw.trim().toLowerCase(Locale.ROOT).replace('-', '_');
 		if (key.equals("shift_right") || key.equals("shift") || key.equals("sneak_right")) {
 			return Click.SHIFT_RIGHT;
 		}

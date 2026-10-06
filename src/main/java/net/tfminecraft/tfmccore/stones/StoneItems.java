@@ -44,7 +44,7 @@ public class StoneItems {
         String path = kind == Kind.LORE ? LorestoneConfig.lorestonePath : LorestoneConfig.namestonePath;
         try {
             ItemStack stack = TLibs.getItemAPI().getCreator().getItemFromPath(path);
-            if (stack == null) {
+            if (stack == null || stack.isEmpty()) {
                 warn("No item found for lorestones config path: " + path);
                 return null;
             }

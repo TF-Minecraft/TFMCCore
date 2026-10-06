@@ -96,13 +96,18 @@ public class WhistleListener implements Listener {
         soundResolved = true;
         String raw = WhistleConfig.soundName;
         if (raw == null || raw.isEmpty()) return null;
-        String normalized = raw.toLowerCase().replace('_', '.');
+        String normalized = raw.toLowerCase(java.util.Locale.ROOT);
         NamespacedKey key = NamespacedKey.fromString(normalized.contains(":") ? normalized : "minecraft:" + normalized);
         cachedSound = key == null ? null : Registry.SOUNDS.get(key);
         if (cachedSound == null) {
+            normalized = normalized.replace('_', '.');
+            key = NamespacedKey.fromString(normalized.contains(":") ? normalized : "minecraft:" + normalized);
+            cachedSound = key == null ? null : Registry.SOUNDS.get(key);
+        }
+        if (cachedSound == null) {
             // The naive underscore replace misses keys such as "item.goat_horn.sound.6",
             // so fall back to matching registry entries with all separators stripped.
-            String flattened = raw.toLowerCase().replace("_", "");
+            String flattened = raw.toLowerCase(java.util.Locale.ROOT).replace("_", "");
             for (Sound candidate : Registry.SOUNDS) {
                 String candidateKey = Registry.SOUNDS.getKey(candidate).getKey().replace(".", "").replace("_", "");
                 if (candidateKey.equalsIgnoreCase(flattened)) {

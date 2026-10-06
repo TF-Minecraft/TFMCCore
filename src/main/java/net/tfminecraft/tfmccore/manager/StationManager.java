@@ -28,7 +28,7 @@ public class StationManager implements Listener {
 				continue;
 			}
 			if (!station.matchesClick(sneaking)) {
-				return;
+				continue;
 			}
 			openStation(p, station.getId());
 			e.setCancelled(true);

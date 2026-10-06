@@ -2,6 +2,7 @@ package net.tfminecraft.tfmccore.loader;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Locale;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -40,7 +41,7 @@ public class ConfigLoader {
         if(config.contains("blocked-consume")) {
             for(String s : config.getStringList("blocked-consume")) {
                 try {
-                    Cache.blockedConsume.add(Material.valueOf(s.toUpperCase()));
+                    Cache.blockedConsume.add(Material.valueOf(s.toUpperCase(Locale.ROOT)));
                 } catch (Exception e) {
                     Bukkit.getLogger().info("[TFMCCore] could not convert "+s+" to a material");
                 }
@@ -50,7 +51,7 @@ public class ConfigLoader {
         if(config.contains("blocked-crafts")) {
             for(String s : config.getStringList("blocked-crafts")) {
                 try {
-                    Cache.blockedCrafts.add(Material.valueOf(s.toUpperCase()));
+                    Cache.blockedCrafts.add(Material.valueOf(s.toUpperCase(Locale.ROOT)));
                 } catch (Exception e) {
                     Bukkit.getLogger().info("[TFMCCore] could not convert "+s+" to a material");
                 }

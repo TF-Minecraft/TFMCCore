@@ -2,6 +2,7 @@ package net.tfminecraft.tfmccore.whistle;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Locale;
 
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -29,7 +30,7 @@ public final class WhistleConfigLoader {
         WhistleConfig.whitelistedAnimals.clear();
         for (String name : config.getStringList("settings.whitelisted-animals")) {
             try {
-                WhistleConfig.whitelistedAnimals.add(EntityType.valueOf(name.trim().toUpperCase()));
+                WhistleConfig.whitelistedAnimals.add(EntityType.valueOf(name.trim().toUpperCase(Locale.ROOT)));
             } catch (IllegalArgumentException ex) {
                 warn("Unknown entity type in animal whistle whitelist: " + name);
             }

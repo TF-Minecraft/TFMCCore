@@ -19,16 +19,20 @@ public final class SkillsStatConfig {
     private final Map<String, String> skillLabels = new HashMap<>();
 
     public void load(File configFile) {
-        labels.clear();
-        skillLabels.clear();
+        loadChecked(configFile);
+    }
 
+    public boolean loadChecked(File configFile) {
         FileConfiguration config = new YamlConfiguration();
         try {
             config.load(configFile);
         } catch (IOException | InvalidConfigurationException e) {
             e.printStackTrace();
-            return;
+            return false;
         }
+
+        Map<String, String> labels = new HashMap<>();
+        Map<String, String> skillLabels = new HashMap<>();
 
         if (config.isConfigurationSection("labels")) {
             for (String statKey : config.getConfigurationSection("labels").getKeys(false)) {
@@ -47,6 +51,11 @@ public final class SkillsStatConfig {
                 }
             }
         }
+        this.labels.clear();
+        this.labels.putAll(labels);
+        this.skillLabels.clear();
+        this.skillLabels.putAll(skillLabels);
+        return true;
     }
 
     public String getLabel(String statKey) {

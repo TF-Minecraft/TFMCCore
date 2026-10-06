@@ -26,9 +26,9 @@ public final class SqliteStatStorage implements StatStorage {
 
     private static final String UPSERT_INCREMENT = """
             INSERT INTO stat_totals (player_uuid, category, stat_key, value)
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, MAX(0, ?))
             ON CONFLICT(player_uuid, category, stat_key)
-            DO UPDATE SET value = MAX(0, stat_totals.value + excluded.value)
+            DO UPDATE SET value = MAX(0, stat_totals.value + ?)
             """;
 
     private final SqliteDatabase database;
@@ -50,6 +50,8 @@ public final class SqliteStatStorage implements StatStorage {
                     playerUuid.toString(),
                     category,
                     statKey,
+                    // The inserted value is floored; existing rows need the original signed delta.
+                    delta,
                     delta);
         } catch (SqliteDatabaseException e) {
             Bukkit.getLogger().warning("[TFMCCore] failed to increment stat: " + e.getMessage());

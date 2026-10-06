@@ -33,7 +33,9 @@ JUnit 5 and Mockito tests cover drops, statistics storage, stone and whistle
 configuration, `/tfmc` commands, the Xaero fair-play listener and resource-pack
 compaction and delivery, with server and plugin APIs mocked. CI runs the same
 command on every push and pull request to `main` and uploads the Surefire reports;
-no coverage gate is enforced. The suite does not start a live Paper server.
+JaCoCo writes HTML/XML to `target/site/jacoco/` and enforces 100% production
+line coverage in `verify`, with no class or package exclusions. CI also uploads
+coverage reports. The gate does not require 100% branch coverage. The suite does not start a live Paper server.
 
 ## License
 
