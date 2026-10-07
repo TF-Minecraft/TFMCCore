@@ -117,6 +117,45 @@ class StatsReloadCoverageTest {
     assertTrue(config.resolveStatKey("other", VehicleDeath.SINK).isEmpty());
   }
 
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"groups", "death-stats", "labels"})
+  void presentScalarVehicleSectionPreservesTheCompletePreviousConfiguration(String section)
+      throws Exception {
+    VehiclesStatConfig config = new VehiclesStatConfig();
+    Path file = root.resolve("vehicles.yml");
+    Files.writeString(
+        file,
+        "groups:\n"
+            + "  ship:\n"
+            + "    vehicles: [ironclad]\n"
+            + "death-stats:\n"
+            + "  ship:\n"
+            + "    sink: ships_sunk\n"
+            + "labels:\n"
+            + "  ships_sunk: Lost ships\n");
+    assertTrue(config.loadChecked(file.toFile()));
+    Files.writeString(file, section + ": invalid\n");
+    var diagnostic = new java.io.ByteArrayOutputStream();
+    var previous = System.err;
+    try (var capture =
+        new java.io.PrintStream(diagnostic, true, java.nio.charset.StandardCharsets.UTF_8)) {
+      System.setErr(capture);
+      assertFalse(config.loadChecked(file.toFile()));
+    } finally {
+      System.setErr(previous);
+    }
+    assertTrue(
+        diagnostic
+            .toString(java.nio.charset.StandardCharsets.UTF_8)
+            .contains(section + " must be a section"));
+    assertEquals("ships_sunk", config.resolveStatKey("ironclad", VehicleDeath.SINK).orElseThrow());
+    assertEquals("Lost ships", config.getLabel("ships_sunk"));
+    Files.writeString(file, "# omitted sections intentionally clear the configuration\n");
+    assertTrue(config.loadChecked(file.toFile()));
+    assertTrue(config.resolveStatKey("ironclad", VehicleDeath.SINK).isEmpty());
+    assertEquals("Ships Sunk", config.getLabel("ships_sunk"));
+  }
+
   @Test
   void vehicleMappingsUseLocaleIndependentIdentifiers() throws Exception {
     Locale previous = Locale.getDefault();

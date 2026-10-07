@@ -37,6 +37,14 @@ public final class VehiclesStatConfig {
         Map<String, Map<String, String>> groupDeathToStatKey = new HashMap<>();
         Map<String, String> labels = new HashMap<>();
 
+        for (String section : List.of("groups", "death-stats", "labels")) {
+            if (config.contains(section) && !config.isConfigurationSection(section)) {
+                System.err.println("[TFMCCore] " + configFile.getName()
+                        + ": " + section + " must be a section");
+                return false;
+            }
+        }
+
         if (config.isConfigurationSection("groups")) {
             for (String group : config.getConfigurationSection("groups").getKeys(false)) {
                 List<String> vehicles = config.getStringList("groups." + group + ".vehicles");
