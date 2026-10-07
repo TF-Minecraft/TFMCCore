@@ -49,7 +49,12 @@ final class ItemsAdderPackBridge implements AutoCloseable {
             }
         };
         ProtocolLibrary.getProtocolManager().addPacketListener(listener);
-        poll = plugin.getServer().getScheduler().runTaskTimer(plugin, queue::drain, 1, 10);
+        try {
+            poll = plugin.getServer().getScheduler().runTaskTimer(plugin, queue::drain, 1, 10);
+        } catch (RuntimeException | LinkageError error) {
+            ProtocolLibrary.getProtocolManager().removePacketListener(listener);
+            throw error;
+        }
     }
 
     private void original(Player player, PacketContainer packet) {

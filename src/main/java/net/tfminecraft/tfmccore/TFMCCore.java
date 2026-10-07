@@ -249,13 +249,13 @@ public class TFMCCore extends JavaPlugin{
     }
 
     public boolean reloadStatsConfigs() {
-        statsConfig.load(new File(getDataFolder(), "stats.yml"));
-        vehiclesStatConfig.load(new File(getDataFolder(), "vehiclestats.yml"));
-        rpCharactersStatConfig.load(new File(getDataFolder(), "rpcharactersstats.yml"));
-        advancedCraftingStatConfig.load(new File(getDataFolder(), "advancedcraftingstats.yml"));
-        skillsStatConfig.load(new File(getDataFolder(), "skillsstats.yml"));
-        factionsStatConfig.load(new File(getDataFolder(), "factionsstats.yml"));
-        return true;
+        boolean ok = statsConfig.loadChecked(new File(getDataFolder(), "stats.yml"));
+        ok &= vehiclesStatConfig.loadChecked(new File(getDataFolder(), "vehiclestats.yml"));
+        ok &= rpCharactersStatConfig.loadChecked(new File(getDataFolder(), "rpcharactersstats.yml"));
+        ok &= advancedCraftingStatConfig.loadChecked(new File(getDataFolder(), "advancedcraftingstats.yml"));
+        ok &= skillsStatConfig.loadChecked(new File(getDataFolder(), "skillsstats.yml"));
+        ok &= factionsStatConfig.loadChecked(new File(getDataFolder(), "factionsstats.yml"));
+        return ok;
     }
 
     private void initStats() {

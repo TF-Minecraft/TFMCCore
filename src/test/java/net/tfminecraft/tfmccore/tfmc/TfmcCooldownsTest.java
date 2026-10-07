@@ -2,6 +2,7 @@ package net.tfminecraft.tfmccore.tfmc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -61,6 +62,49 @@ class TfmcCooldownsTest {
         assertEquals("2d 23h 59m", TfmcCooldowns.format(3 * DAY - 60_000L));
         assertEquals("10s", TfmcCooldowns.format(9_001L));
         assertEquals("1h 1s", TfmcCooldowns.format(3_601_000L));
+    }
+
+    @Test
+    void absentStorageKeepsCooldownsInMemoryAndMissingImportsAreEmpty() {
+        TfmcCooldowns absent = cooldowns();
+        assertFalse(absent.exists());
+        absent.load();
+        assertEquals(0, absent.importConditionalEvents(dir.resolve("missing").toFile(), "global_booster", "booster"));
+        TfmcCooldowns memory = new TfmcCooldowns(null, Set.of("booster"), () -> now);
+        memory.load();
+        memory.markUsed("booster", PLAYER);
+        memory.save();
+        assertFalse(memory.exists());
+        assertEquals(DAY, memory.remaining("booster", PLAYER, DAY));
+    }
+
+    @Test
+    void malformedSiblingRecordsDoNotHideAValidPersistentCooldown() throws Exception {
+        Files.writeString(dir.resolve("tfmc-cooldowns.yml"), """
+                scalar: invalid
+                booster:
+                  not-a-player-id: 123
+                  %s: %d
+                """.formatted(PLAYER, now));
+        TfmcCooldowns loaded = cooldowns();
+        loaded.load();
+        assertEquals(DAY, loaded.remaining("booster", PLAYER, DAY));
+        assertEquals(0, loaded.remaining("scalar", PLAYER, DAY));
+        assertEquals(0, loaded.remaining("booster", PLAYER, 0));
+    }
+
+    @Test
+    void failedSaveRetainsTheCooldownForARetry() throws Exception {
+        Path path = Files.createDirectory(dir.resolve("tfmc-cooldowns.yml"));
+        TfmcCooldowns cooldowns = cooldowns();
+        cooldowns.markUsed("booster", PLAYER);
+        assertTrue(Files.isDirectory(path));
+        assertEquals(DAY, cooldowns.remaining("booster", PLAYER, DAY));
+        Files.delete(path);
+        cooldowns.save();
+        TfmcCooldowns restarted = cooldowns();
+        restarted.load();
+        assertEquals(DAY, restarted.remaining("booster", PLAYER, DAY));
     }
 
     private TfmcCooldowns cooldowns() {

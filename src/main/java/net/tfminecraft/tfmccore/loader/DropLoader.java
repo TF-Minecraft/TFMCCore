@@ -25,24 +25,25 @@ public class DropLoader {
 		return oList.get(id);
 	}
 	public boolean load(File configFile) {
-		clear();
 		FileConfiguration config = new YamlConfiguration();
-        try {
-        	config.load(configFile);
-        } catch (IOException | InvalidConfigurationException e) {
-            e.printStackTrace();
-            return false;
-        }
-        ConfigurationSection root = config.getConfigurationSection("drops");
-        if (root == null) {
-            root = config;
-        }
-
-		for (String key : root.getKeys(false)) {
-			ConfigurationSection section = root.getConfigurationSection(key);
-			if (section == null) continue;
-			oList.put(key, new Drop(key, section));
+		Map<String, Drop> loaded = new HashMap<>();
+		try {
+			config.load(configFile);
+			ConfigurationSection root = config.getConfigurationSection("drops");
+			if (root == null) {
+				root = config;
+			}
+			for (String key : root.getKeys(false)) {
+				ConfigurationSection section = root.getConfigurationSection(key);
+				if (section == null) continue;
+				loaded.put(key, new Drop(key, section));
+			}
+		} catch (IOException | InvalidConfigurationException | RuntimeException e) {
+			e.printStackTrace();
+			return false;
 		}
+		oList.clear();
+		oList.putAll(loaded);
 		return true;
 	}
 }

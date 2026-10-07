@@ -21,17 +21,21 @@ public final class RpCharactersStatConfig {
     private final Map<String, String> raceLabels = new HashMap<>();
 
     public void load(File configFile) {
-        labels.clear();
-        classLabels.clear();
-        raceLabels.clear();
+        loadChecked(configFile);
+    }
 
+    public boolean loadChecked(File configFile) {
         FileConfiguration config = new YamlConfiguration();
         try {
             config.load(configFile);
         } catch (IOException | InvalidConfigurationException e) {
             e.printStackTrace();
-            return;
+            return false;
         }
+
+        Map<String, String> labels = new HashMap<>();
+        Map<String, String> classLabels = new HashMap<>();
+        Map<String, String> raceLabels = new HashMap<>();
 
         if (config.isConfigurationSection("labels")) {
             for (String statKey : config.getConfigurationSection("labels").getKeys(false)) {
@@ -59,6 +63,13 @@ public final class RpCharactersStatConfig {
                 }
             }
         }
+        this.labels.clear();
+        this.labels.putAll(labels);
+        this.classLabels.clear();
+        this.classLabels.putAll(classLabels);
+        this.raceLabels.clear();
+        this.raceLabels.putAll(raceLabels);
+        return true;
     }
 
     public String getLabel(String statKey) {

@@ -105,6 +105,66 @@ class MultipartPackTest {
         Files.write(source, Arrays.copyOf(bytes, bytes.length - 5));
         assertThrows(IOException.class, () -> PackPartitioner.split(source, directory.resolve("parts")));
     }
+    @Test void rejectsUnsafeOrMalformedOverlayMetadataBeforeCreatingParts() throws Exception {
+        for (String metadata : List.of(METADATA.replace("\"old\"", "\"../old\""), "{invalid", "[]")) {
+            var files = resources();
+            files.put("pack.mcmeta", metadata);
+            Path source = zip(files, false), output = directory.resolve(UUID.randomUUID().toString());
+            IOException error = assertThrows(IOException.class, () -> PackPartitioner.split(source, output));
+            assertTrue(error.getMessage().contains("metadata") || error.getMessage().contains("overlay directory"));
+            assertFalse(Files.exists(output));
+        }
+    }
+    @Test void requiresBothModelAndSoundNamespaceGroups() throws Exception {
+        for (String omitted : List.of("/modelengine/", "/creature_sounds/")) {
+            var files = resources();
+            files.keySet().removeIf(path -> path.contains(omitted));
+            Path source = zip(files, false), output = directory.resolve(UUID.randomUUID().toString());
+            IOException error = assertThrows(IOException.class, () -> PackPartitioner.split(source, output));
+            assertEquals("Pack does not contain the three expected namespace groups", error.getMessage());
+            assertFalse(Files.exists(output));
+        }
+    }
+    @Test void rejectsInconsistentDirectoryCountsAndEncryptedRecords() throws Exception {
+        Path countSource = zip(resources(), false);
+        byte[] bytes = Files.readAllBytes(countSource);
+        ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putShort(bytes.length - 14, (short) 0);
+        Files.write(countSource, bytes);
+        assertEquals("ZIP64 or inconsistent ZIP directory", assertThrows(IOException.class,
+                () -> PackPartitioner.split(countSource, directory.resolve("bad-count"))).getMessage());
+
+        Path encryptedSource = zip(resources(), false);
+        bytes = Files.readAllBytes(encryptedSource);
+        buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
+        int central = buffer.getInt(bytes.length - 6);
+        buffer.putShort(central + 8, (short) (buffer.getShort(central + 8) | 1));
+        Files.write(encryptedSource, bytes);
+        assertEquals("Unsupported local record", assertThrows(IOException.class,
+                () -> PackPartitioner.split(encryptedSource, directory.resolve("encrypted"))).getMessage());
+        assertFalse(Files.exists(directory.resolve("bad-count")));
+        assertFalse(Files.exists(directory.resolve("encrypted")));
+    }
+    @Test void truncatedCentralFieldsReportAnIoFailureInsteadOfIndexErrors() throws Exception {
+        ByteBuffer buffer = ByteBuffer.allocate(26).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(0x02014b50).putInt(0x06054b50).putShort((short) 0).putShort((short) 0)
+                .putShort((short) 1).putShort((short) 1).putInt(4).putInt(0).putShort((short) 0);
+        Path source = directory.resolve("truncated-central.zip");
+        Files.write(source, buffer.array());
+        IOException failure = assertThrows(IOException.class,
+                () -> PackPartitioner.split(source, directory.resolve("truncated")));
+        assertEquals("Truncated ZIP", failure.getMessage());
+        assertInstanceOf(IndexOutOfBoundsException.class, failure.getCause());
+        assertFalse(Files.exists(directory.resolve("truncated")));
+    }
+    @Test void missingRequiredDigestProviderIsReportedAsAnInvariantFailure() throws Exception {
+        var unavailable = new java.security.NoSuchAlgorithmException("SHA-1 provider missing");
+        try (var algorithms = org.mockito.Mockito.mockStatic(java.security.MessageDigest.class)) {
+            algorithms.when(() -> java.security.MessageDigest.getInstance("SHA-1")).thenThrow(unavailable);
+            assertSame(unavailable, assertThrows(AssertionError.class,
+                    () -> PackPartitioner.sha1(directory.resolve("unused.zip"))).getCause());
+        }
+    }
     @Test void generationIsImmutableAndRetryIsIdempotent() throws Exception {
         Path source = zip(resources(), true); String hash = PackPartitioner.sha1(source);
         var publisher = new PackPublisher(directory.resolve("published"));

@@ -127,7 +127,8 @@ public class StoneListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
-        if (!pending.containsKey(player.getUniqueId())) {
+        Pending prompt = pending.get(player.getUniqueId());
+        if (prompt == null) {
             return;
         }
 
@@ -136,7 +137,7 @@ public class StoneListener implements Listener {
         String raw = event.getMessage();
         TFMCCore plugin = TFMCCore.getInstance();
         if (plugin != null && plugin.isEnabled()) {
-            plugin.getServer().getScheduler().runTask(plugin, () -> apply(player, raw));
+            plugin.getServer().getScheduler().runTask(plugin, () -> apply(player, raw, prompt));
         }
     }
 
@@ -148,9 +149,9 @@ public class StoneListener implements Listener {
     // Main thread: everything that touches the inventory.
     // Keep the existing legacy text representation, formatting, and exact-string comparisons.
     @SuppressWarnings("deprecation")
-    private void apply(Player player, String raw) {
-        Pending pd = pending.remove(player.getUniqueId());
-        if (pd == null) {
+    private void apply(Player player, String raw, Pending pd) {
+        // A timeout or quit may have ended this prompt before its queued chat is processed.
+        if (!pending.remove(player.getUniqueId(), pd)) {
             items.msg(player, LorestoneConfig.expiredMessage);
             return;
         }

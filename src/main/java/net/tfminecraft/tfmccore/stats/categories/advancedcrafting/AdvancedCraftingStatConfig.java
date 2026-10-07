@@ -21,17 +21,21 @@ public final class AdvancedCraftingStatConfig {
     private final Map<String, String> hitLabels = new HashMap<>();
 
     public void load(File configFile) {
-        labels.clear();
-        categoryLabels.clear();
-        hitLabels.clear();
+        loadChecked(configFile);
+    }
 
+    public boolean loadChecked(File configFile) {
         FileConfiguration config = new YamlConfiguration();
         try {
             config.load(configFile);
         } catch (IOException | InvalidConfigurationException e) {
             e.printStackTrace();
-            return;
+            return false;
         }
+
+        Map<String, String> labels = new HashMap<>();
+        Map<String, String> categoryLabels = new HashMap<>();
+        Map<String, String> hitLabels = new HashMap<>();
 
         if (config.isConfigurationSection("labels")) {
             for (String statKey : config.getConfigurationSection("labels").getKeys(false)) {
@@ -59,6 +63,13 @@ public final class AdvancedCraftingStatConfig {
                 }
             }
         }
+        this.labels.clear();
+        this.labels.putAll(labels);
+        this.categoryLabels.clear();
+        this.categoryLabels.putAll(categoryLabels);
+        this.hitLabels.clear();
+        this.hitLabels.putAll(hitLabels);
+        return true;
     }
 
     public String getLabel(String statKey) {

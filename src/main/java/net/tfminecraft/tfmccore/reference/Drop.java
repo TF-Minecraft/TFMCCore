@@ -3,6 +3,7 @@ package net.tfminecraft.tfmccore.reference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.bukkit.Bukkit;
@@ -41,7 +42,7 @@ public class Drop {
             String[] args = s.split("\\(");
             Material m = Material.AIR;
             try {
-                m = Material.valueOf(args[0].toUpperCase());
+                m = Material.valueOf(args[0].toUpperCase(Locale.ROOT));
             } catch (Exception e) {
                 Bukkit.getLogger().info("[TFMCCore] could not convert "+args[0]+" to a material");
             }
@@ -189,7 +190,7 @@ public class Drop {
 
     private void drop(DropEntry drop, Block block) {
         ItemStack item = TLibs.getItemAPI().getCreator().getItemFromPath(drop.getItem());
-        if (item == null) {
+        if (item == null || item.isEmpty()) {
             DropDebug.log("table " + id + " could not create item " + drop.getItem());
             Bukkit.getLogger().info("[TFMCCore] could not create drop item " + drop.getItem());
             return;
@@ -219,7 +220,7 @@ public class Drop {
         }
         if(tool != null && tool.containsEnchantment(Enchantment.FORTUNE)) {
             int fortuneLevel = tool.getEnchantmentLevel(Enchantment.FORTUNE);
-            chance = 1 - Math.pow(1 - chance, fortuneLevel + 1);
+            chance = 1 - Math.pow(1 - Math.min(1.0, chance), fortuneLevel + 1);
         }
         return chance;
     }

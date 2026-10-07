@@ -127,6 +127,31 @@ class OverlayCompactorTest {
                 JsonParser.parseString(METADATA).getAsJsonObject(), files.keySet()));
     }
 
+    @Test void rejectsNonResourceOverlayFilesWithoutMutatingMetadata() {
+        var metadata = JsonParser.parseString(METADATA).getAsJsonObject();
+        var snapshot = metadata.deepCopy();
+        var files = files();
+        files.put("ia_overlay_1_20_5_plus/readme.txt", "unexpected overlay file");
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                () -> OverlayCompactor.plan(metadata, files.keySet()));
+        assertTrue(failure.getMessage().contains("Unexpected non-resource overlay entry"));
+        assertEquals(snapshot, metadata);
+    }
+
+    @Test void rejectsNegativeReversedAndOverflowingFormatRangesBeforeMutation() {
+        for (int[] range : List.of(new int[] {-1, 64}, new int[] {65, 64}, new int[] {32, Integer.MAX_VALUE})) {
+            var metadata = JsonParser.parseString(METADATA).getAsJsonObject();
+            var first = metadata.getAsJsonObject("overlays").getAsJsonArray("entries").get(0).getAsJsonObject();
+            first.addProperty("min_format", range[0]);
+            first.addProperty("max_format", range[1]);
+            var snapshot = metadata.deepCopy();
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                    () -> OverlayCompactor.plan(metadata, files().keySet()));
+            assertEquals("Invalid overlay format range", failure.getMessage());
+            assertEquals(snapshot, metadata);
+        }
+    }
+
     @Test void emptyOptionalOverlayStillAllowsCompactionWithoutChangingResources() {
         var before = files();
         before.keySet().removeIf(p -> p.startsWith("ia_overlay_1_20_5_plus/"));

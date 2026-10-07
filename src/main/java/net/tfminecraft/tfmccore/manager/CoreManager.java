@@ -31,8 +31,7 @@ public class CoreManager implements Listener{
 	public void preventBoneMeal(PlayerInteractEvent e) {
         if(Cache.allowBoneMeal) return;
 		if(!e.getAction().equals(Action.RIGHT_CLICK_BLOCK)) return;
-		Player p = e.getPlayer();
-		ItemStack item = p.getInventory().getItemInMainHand();
+		ItemStack item = e.getItem();
 		if((e.getClickedBlock().getBlockData() instanceof Ageable)) {
 			if(TLibs.getItemAPI().getChecker().checkItemWithPath(item, "v.bone_meal")) {
                 e.setCancelled(true);

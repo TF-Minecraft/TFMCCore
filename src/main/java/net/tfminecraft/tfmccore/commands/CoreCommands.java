@@ -1,6 +1,7 @@
 package net.tfminecraft.tfmccore.commands;
 
 import java.util.Arrays;
+import java.util.Locale;
 
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -65,7 +66,7 @@ public class CoreCommands implements CommandExecutor {
             return true;
         }
 
-        String target = args.length >= 2 ? args[1].toLowerCase() : "all";
+        String target = args.length >= 2 ? args[1].toLowerCase(Locale.ROOT) : "all";
         boolean ok;
         String label;
         switch (target) {

@@ -31,42 +31,42 @@ public class StationLoader {
 	}
 
 	public boolean load(File configFile) {
-		clear();
 		FileConfiguration config = new YamlConfiguration();
+		Map<String, Station> loaded = new LinkedHashMap<>();
 		try {
 			config.load(configFile);
-		} catch (IOException | InvalidConfigurationException e) {
+			if (config.isConfigurationSection("stations")) {
+				ConfigurationSection root = config.getConfigurationSection("stations");
+				for (String key : root.getKeys(false)) {
+					ConfigurationSection section = root.getConfigurationSection(key);
+					if (section == null) {
+						continue;
+					}
+					String block = section.getString("block");
+					if (block == null || block.isBlank()) {
+						continue;
+					}
+					Station.Click click = Station.parseClick(section.getString("click", "right"));
+					loaded.put(key, new Station(key, block.trim(), click));
+				}
+			} else {
+				List<String> list = config.getStringList("stations");
+				for (String s : list) {
+					String[] args = s.trim().split("\\s+");
+					if (args.length < 2) {
+						continue;
+					}
+					String block = args[0];
+					String id = args[1];
+					loaded.put(id, new Station(id, block, defaultClickForBlock(block)));
+				}
+			}
+		} catch (IOException | InvalidConfigurationException | RuntimeException e) {
 			e.printStackTrace();
 			return false;
 		}
-
-		if (config.isConfigurationSection("stations")) {
-			ConfigurationSection root = config.getConfigurationSection("stations");
-			for (String key : root.getKeys(false)) {
-				ConfigurationSection section = root.getConfigurationSection(key);
-				if (section == null) {
-					continue;
-				}
-				String block = section.getString("block");
-				if (block == null || block.isBlank()) {
-					continue;
-				}
-				Station.Click click = Station.parseClick(section.getString("click", "right"));
-				oList.put(key, new Station(key, block.trim(), click));
-			}
-			return true;
-		}
-
-		List<String> list = config.getStringList("stations");
-		for (String s : list) {
-			String[] args = s.split("\\s+");
-			if (args.length < 2) {
-				continue;
-			}
-			String block = args[0];
-			String id = args[1];
-			oList.put(id, new Station(id, block, defaultClickForBlock(block)));
-		}
+		oList.clear();
+		oList.putAll(loaded);
 		return true;
 	}
 

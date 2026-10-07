@@ -11,14 +11,20 @@ public final class StatsConfig {
     private boolean enabled = true;
 
     public void load(File configFile) {
+        loadChecked(configFile);
+    }
+
+    public boolean loadChecked(File configFile) {
         FileConfiguration config = new YamlConfiguration();
         try {
             config.load(configFile);
         } catch (IOException | InvalidConfigurationException e) {
             e.printStackTrace();
+            return false;
         }
 
         enabled = config.getBoolean("enabled", true);
+        return true;
     }
 
     public boolean isEnabled() {

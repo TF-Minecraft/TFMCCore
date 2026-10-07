@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import java.nio.file.Files;
@@ -24,6 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.random.RandomGenerator;
 
 import org.bukkit.Material;
+import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
@@ -54,6 +56,8 @@ class TfmcCommandTest {
     private final List<Runnable> scheduled = new ArrayList<>();
     private int cancelled;
     private TfmcActions.TrackStep nextStep;
+    private RuntimeException permissionFailure;
+    private RuntimeException trackFailure;
     private final List<Runnable> mainThread = new ArrayList<>();
     private int packsSent;
     private long clock = NOW.toEpochMilli();
@@ -366,6 +370,123 @@ class TfmcCommandTest {
         assertEquals(List.of("Only players can use this command."), messages);
     }
 
+    @Test
+    void completionsFilterConfiguredNamesAndOnlinePlayersByPrefix() throws Exception {
+        enableDevContent();
+        TestPlayer helper = player("Helper", "tfmc.helper");
+        assertEquals(List.of("factions", "fishing"), suggestions(helper, "tfmc tutorial F"));
+        assertEquals(List.of("Zerratoris1"), suggestions(helper, "tfmc poster ZERRATORIS1"));
+        List<Player> online = List.of(player("Alex").player, player("Bob").player);
+        try (var bukkit = mockStatic(Bukkit.class)) {
+            bukkit.when(Bukkit::getOnlinePlayers).thenReturn(online);
+            assertEquals(List.of("Alex"), suggestions(helper, "tfmc ban a"));
+            assertTrue(suggestions(helper, "tfmc ban nobody").isEmpty());
+        }
+    }
+
+    @Test
+    void resourcePackPreferencesAvoidRedundantPermissionWrites() throws Exception {
+        TestPlayer automatic = player("Auto", "tfmcresourcepack.enable");
+        run(automatic, "tfmc pack auto");
+        assertEquals("Resource Pack Auto-Apply is already enabled.", automatic.messages.getFirst());
+        TestPlayer manual = player("Manual");
+        run(manual, "tfmc pack manual");
+        assertEquals("Resource Pack Auto-Apply is already disabled.", manual.messages.getFirst());
+        assertTrue(permissionChanges.isEmpty());
+        run(automatic, "tfmc pack manual");
+        assertEquals(List.of("Auto tfmcresourcepack.enable false"), permissionChanges);
+    }
+
+    @Test
+    void invalidPatternMaterialsAreSkippedAndTheCooldownPreventsDuplicateItems() throws Exception {
+        config.loadFromString("""
+                patterns:
+                  cooldown-seconds: 10
+                  items: [FLOWER_BANNER_PATTERN, NOT_A_MATERIAL]
+                messages:
+                  cooldown: "Wait <time>"
+                """);
+        TestPlayer player = player("Steve");
+        run(player, "tfmc patterns");
+        assertEquals(List.of(Material.FLOWER_BANNER_PATTERN), given);
+        run(player, "tfmc patterns");
+        assertEquals(1, given.size());
+        assertEquals(List.of("Wait 10s"), player.messages);
+    }
+
+    @Test
+    void mapLinkUsesTheConfiguredCooldown() throws Exception {
+        TestPlayer player = player("Steve");
+        run(player, "tfmc map");
+        assertEquals(List.of("View the global nations map on: https://www.tfminecraft.net/"), player.messages);
+        run(player, "tfmc map");
+        assertEquals(List.of("You need to wait 10s before using this again."), player.messages);
+        clock += 10_000L;
+        run(player, "tfmc map");
+        assertTrue(player.messages.getFirst().contains("https://www.tfminecraft.net/"));
+    }
+
+    @Test
+    void invalidBanNamesNeverReachConsoleCommands() throws Exception {
+        TestPlayer helper = player("Helper", "tfmc.helper");
+        assertEquals(0, dispatcher.execute("tfmc ban bad-name reason", source(helper.player)));
+        assertEquals(List.of("That is not a valid player name."), helper.messages);
+        assertTrue(console.isEmpty());
+    }
+
+    @Test
+    void failedPermissionAndTrackUpdatesReportFailureOnTheMainThread() throws Exception {
+        TestPlayer helper = player("Helper", "helper.promote", "helper.demote");
+        permissionFailure = new IllegalStateException("Permission storage unavailable");
+        dispatcher.execute("tfmc tips disable", source(helper.player));
+        assertTrue(helper.messages.isEmpty());
+        runMainThread();
+        assertEquals(List.of("Something went wrong. Please try again or open a Ticket."), helper.messages);
+        trackFailure = new IllegalStateException("Track storage unavailable");
+        for (String step : List.of("promote", "demote")) {
+            helper.messages.clear();
+            dispatcher.execute("tfmc helper " + step, source(helper.player));
+            assertTrue(helper.messages.isEmpty());
+            runMainThread();
+            assertEquals(List.of("Your helper status could not be changed."), helper.messages);
+        }
+    }
+
+    @Test
+    void shutdownRestoresActiveFlightExactlyOnce() throws Exception {
+        enableDevContent();
+        TestPlayer flying = player("Flying", "group.ascended");
+        TestPlayer walking = player("Walking");
+        run(flying, "tfmc parrot");
+        try (var bukkit = mockStatic(Bukkit.class)) {
+            bukkit.when(Bukkit::getOnlinePlayers).thenReturn(List.of(flying.player, walking.player));
+            command.shutdown();
+            command.shutdown();
+        }
+        assertEquals(List.of("start Flying 0.01", "end Flying"), flights);
+        assertEquals(1, cancelled);
+        assertEquals("libsdisguises:undisguiseplayer Flying", console.getLast());
+        assertTrue(walking.messages.isEmpty());
+    }
+
+    @Test
+    void unknownPostersAndRemovedHelperTracksFailWithoutSideEffects() throws Exception {
+        TestPlayer helper = player("Helper", "helper.promote", "helper.demote");
+        run(helper, "tfmc poster missing");
+        assertEquals(List.of("There is no poster called missing."), helper.messages);
+        assertTrue(playerCommands.isEmpty());
+        assertTrue(visible(helper).contains("helper"));
+        config.loadFromString("helper-tracks: {}");
+        assertFalse(visible(helper).contains("helper"));
+        assertThrows(CommandSyntaxException.class, () -> run(helper, "tfmc helper promote"));
+        assertTrue(trackSteps.isEmpty());
+    }
+
+    private List<String> suggestions(TestPlayer player, String input) {
+        return dispatcher.getCompletionSuggestions(dispatcher.parse(input, source(player.player)))
+                .join().getList().stream().map(com.mojang.brigadier.suggestion.Suggestion::getText).toList();
+    }
+
     private void enableDevContent() throws Exception {
         config.loadFromString(Files.readString(Path.of("src/main/resources/tfmc.yml"))
                 .replace("  enabled: false", "  enabled: true"));
@@ -449,6 +570,7 @@ class TfmcCommandTest {
         @Override
         public CompletableFuture<Void> setPermission(Player player, String permission, boolean granted) {
             permissionChanges.add(player.getName() + " " + permission + " " + granted);
+            if (permissionFailure != null) return CompletableFuture.failedFuture(permissionFailure);
             return CompletableFuture.completedFuture(null);
         }
 
@@ -473,6 +595,7 @@ class TfmcCommandTest {
         @Override
         public CompletableFuture<TrackStep> stepTrack(Player player, String track, boolean promote) {
             trackSteps.add(player.getName() + " " + track + " " + (promote ? "promote" : "demote"));
+            if (trackFailure != null) return CompletableFuture.failedFuture(trackFailure);
             return CompletableFuture.completedFuture(nextStep != null ? nextStep
                     : new TrackStep(true, Optional.of(promote ? "helper" : "helper_player")));
         }
