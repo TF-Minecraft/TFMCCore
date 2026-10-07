@@ -16,6 +16,8 @@ public class Cache {
     public static boolean preventGolemScrape = true;
     public static boolean dropsDebug = true;
     public static boolean xaeroFairPlay = true;
+    // Read from packet threads
+    public static volatile boolean hideBookGlint = true;
 
     public static int armourTime = 7;
 

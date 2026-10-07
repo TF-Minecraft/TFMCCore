@@ -105,7 +105,8 @@ class ConfigLoaderCoverageTest {
             "horseArchery",
             "preventGolemScrape",
             "dropsDebug",
-            "xaeroFairPlay")) {
+            "xaeroFairPlay",
+            "hideBookGlint")) {
       assertEquals(true, cache.getField(name).get(null), name);
     }
     assertEquals(false, cache.getField("limitShields").get(null));
@@ -130,6 +131,7 @@ class ConfigLoaderCoverageTest {
         prevent-golem-scrape: false
         drops-debug: false
         xaero-fair-play: false
+        hide-book-glint: false
         armour-time: 12
         blocked-consume: [GOLDEN_APPLE]
         blocked-crafts: [DIAMOND_SWORD]
@@ -145,6 +147,7 @@ class ConfigLoaderCoverageTest {
     assertFalse(Cache.preventGolemScrape);
     assertFalse(Cache.dropsDebug);
     assertFalse(Cache.xaeroFairPlay);
+    assertFalse(Cache.hideBookGlint);
     assertEquals(12, Cache.armourTime);
     assertEquals(List.of(Material.GOLDEN_APPLE), Cache.blockedConsume);
     assertEquals(List.of(Material.DIAMOND_SWORD), Cache.blockedCrafts);
@@ -157,6 +160,7 @@ class ConfigLoaderCoverageTest {
     assertTrue(loader.loadConfig(config.toFile()));
     assertTrue(Cache.allowBoneMeal);
     assertTrue(Cache.compactResourcePackOverlays);
+    assertTrue(Cache.hideBookGlint);
     assertEquals(7, Cache.armourTime);
     assertTrue(Cache.blockedCrafts.isEmpty());
     assertTrue(Cache.blockedConsume.isEmpty());

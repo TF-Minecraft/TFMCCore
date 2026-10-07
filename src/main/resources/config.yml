@@ -17,6 +17,9 @@ horse-archery: false
 prevent-golem-scrape: true
 # Send Xaero's Minimap fair-play code (no entity radar or cave mode) on every join.
 xaero-fair-play: true
+# Hide the enchantment glint on signed books (letters and book skins too). Only changes
+# what players see; needs ProtocolLib. After a reload, items update as they are resent.
+hide-book-glint: true
 
 drops-debug: true
 

@@ -13,6 +13,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 
 import net.tfminecraft.tlibs.database.SqliteProvider;
+import net.tfminecraft.tfmccore.books.BookGlintHider;
 import net.tfminecraft.tfmccore.commands.CoreCommands;
 import net.tfminecraft.tfmccore.commands.CoreTabCompletion;
 import net.tfminecraft.tfmccore.commands.SilentPermissionCommand;
@@ -296,6 +297,7 @@ public class TFMCCore extends JavaPlugin{
         getServer().getPluginManager().registerEvents(new XaeroFairPlayListener(this), this);
         // Covers a plugin reload; on a normal start nobody is online yet
         getServer().getOnlinePlayers().forEach(XaeroFairPlayListener::send);
+        BookGlintHider.register(this);
     }
 
     public void createConfigs() {
