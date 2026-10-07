@@ -54,6 +54,8 @@ public final class VehiclesStatConfig {
                 Map<String, String> deathMap = new HashMap<>();
                 var deathSection = config.getConfigurationSection("death-stats." + group);
                 if (deathSection == null) {
+                    System.err.println("[TFMCCore] " + configFile.getName()
+                            + ": death-stats." + group + " must be a section");
                     return false;
                 }
                 for (String deathCause : deathSection.getKeys(false)) {

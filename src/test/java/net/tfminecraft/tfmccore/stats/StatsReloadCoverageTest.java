@@ -100,7 +100,19 @@ class StatsReloadCoverageTest {
     assertEquals("ships_sunk", config.resolveStatKey("ironclad", VehicleDeath.SINK).orElseThrow());
     Files.writeString(
         file, "groups:\n  changed:\n    vehicles: [other]\ndeath-stats:\n  invalid: scalar\n");
-    assertDoesNotThrow(() -> config.load(file.toFile()));
+    var diagnostic = new java.io.ByteArrayOutputStream();
+    var previousError = System.err;
+    try (var capture =
+        new java.io.PrintStream(diagnostic, true, java.nio.charset.StandardCharsets.UTF_8)) {
+      System.setErr(capture);
+      assertFalse(config.loadChecked(file.toFile()));
+    } finally {
+      System.setErr(previousError);
+    }
+    assertTrue(
+        diagnostic
+            .toString(java.nio.charset.StandardCharsets.UTF_8)
+            .contains("death-stats.invalid must be a section"));
     assertEquals("ships_sunk", config.resolveStatKey("ironclad", VehicleDeath.SINK).orElseThrow());
     assertTrue(config.resolveStatKey("other", VehicleDeath.SINK).isEmpty());
   }

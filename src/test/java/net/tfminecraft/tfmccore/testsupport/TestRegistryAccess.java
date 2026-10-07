@@ -68,17 +68,23 @@ public final class TestRegistryAccess implements RegistryAccess {
                   case "getKey" -> ((Keyed) args[0]).getKey();
                   case "get", "getOrThrow" -> {
                     NamespacedKey key = (NamespacedKey) args[0];
+                    boolean create = method.getName().equals("getOrThrow");
                     if (sounds)
-                      yield method.getName().equals("get")
-                          ? SOUNDS.get(key)
-                          : SOUNDS.computeIfAbsent(key, TestRegistryAccess::sound);
+                      yield create
+                          ? SOUNDS.computeIfAbsent(key, TestRegistryAccess::sound)
+                          : SOUNDS.get(key);
                     if (enchantments)
-                      yield ENCHANTMENTS.computeIfAbsent(key, TestRegistryAccess::enchantment);
+                      yield create
+                          ? ENCHANTMENTS.computeIfAbsent(key, TestRegistryAccess::enchantment)
+                          : ENCHANTMENTS.get(key);
                     if (effects)
-                      yield EFFECTS.computeIfAbsent(
-                          key, k -> identifier(PotionEffectType.class, k));
+                      yield create
+                          ? EFFECTS.computeIfAbsent(key, k -> identifier(PotionEffectType.class, k))
+                          : EFFECTS.get(key);
                     if (damage)
-                      yield DAMAGE_TYPES.computeIfAbsent(key, k -> identifier(DamageType.class, k));
+                      yield create
+                          ? DAMAGE_TYPES.computeIfAbsent(key, k -> identifier(DamageType.class, k))
+                          : DAMAGE_TYPES.get(key);
                     throw new IllegalStateException(
                         "This registry is unavailable without a server");
                   }

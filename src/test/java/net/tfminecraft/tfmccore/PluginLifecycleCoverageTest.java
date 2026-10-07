@@ -16,6 +16,7 @@ import io.papermc.paper.plugin.lifecycle.event.registrar.ReloadableRegistrarEven
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import io.papermc.paper.plugin.provider.classloader.ConfiguredPluginClassLoader;
 import io.papermc.paper.plugin.provider.classloader.PluginClassLoaderGroup;
+import io.papermc.paper.registry.RegistryKey;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -53,6 +54,7 @@ import net.tfminecraft.tfmccore.stats.categories.vehicles.VehiclesStatConfig;
 import net.tfminecraft.tfmccore.stones.LorestoneConfigLoader;
 import net.tfminecraft.tfmccore.stones.StoneItems;
 import net.tfminecraft.tfmccore.stones.StoneListener;
+import net.tfminecraft.tfmccore.testsupport.TestRegistryAccess;
 import net.tfminecraft.tfmccore.tfmc.TfmcCommand;
 import net.tfminecraft.tfmccore.tfmc.TfmcConfig;
 import net.tfminecraft.tfmccore.tfmc.TfmcCooldowns;
@@ -61,9 +63,15 @@ import net.tfminecraft.tfmccore.whistle.WhistleListener;
 import net.tfminecraft.tfmccore.xaero.XaeroFairPlayListener;
 import net.tfminecraft.tlibs.database.SqliteProvider;
 import org.bukkit.Bukkit;
+import org.bukkit.Keyed;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.Server;
+import org.bukkit.Sound;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.damage.DamageType;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -72,6 +80,7 @@ import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.PluginLoader;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -81,6 +90,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
+import org.mockito.exceptions.base.MockitoException;
 
 class PluginLifecycleCoverageTest {
   private static final List<String> CONFIGS =
@@ -111,6 +121,128 @@ class PluginLifecycleCoverageTest {
       providers.when(() -> providerMethod.invoke(null)).thenReturn(provider);
       assertNotNull(LifecycleEvents.COMMANDS);
     }
+  }
+
+  @Test
+  void partialRigConstructionRestoresThePluginAndReleasesAlreadyOpenedMocks() throws Exception {
+    TFMCCore previous = TFMCCore.getInstance();
+    TFMCCore sentinel = mock(TFMCCore.class);
+    setField(null, "plugin", sentinel);
+    try (var existingRegistry = mockStatic(StatCategoryRegistry.class)) {
+      MockitoException failure = assertThrows(MockitoException.class, Rig::new);
+
+      assertTrue(failure.getMessage().contains("already registered"));
+      assertSame(sentinel, TFMCCore.getInstance());
+      try (var whistle = mockStatic(WhistleConfigLoader.class);
+          var stone = mockStatic(LorestoneConfigLoader.class);
+          var stats = mockStatic(StatManager.class)) {
+        assertFalse(whistle.isClosed());
+        assertFalse(stone.isClosed());
+        assertFalse(stats.isClosed());
+      }
+    } finally {
+      // Keep the deliberately failing pre-fix regression from contaminating later tests.
+      framework().clearInlineMock(WhistleConfigLoader.class);
+      framework().clearInlineMock(LorestoneConfigLoader.class);
+      framework().clearInlineMock(StatManager.class);
+      setField(null, "plugin", previous);
+    }
+  }
+
+  @Test
+  void rigCleanupPreservesTheOriginalFailureAndClosesEveryResourceInReverseOrder()
+      throws Exception {
+    TFMCCore previous = TFMCCore.getInstance();
+    try (Rig rig = new Rig()) {
+      IOException original = new IOException("initial setup failure");
+      IOException lastFailure = new IOException("last resource failed to close");
+      AssertionError middleFailure = new AssertionError("middle resource failed to close");
+      List<String> closed = new ArrayList<>();
+      rig.track(() -> closed.add("first"));
+      rig.track(
+          () -> {
+            closed.add("middle");
+            throw middleFailure;
+          });
+      rig.track(
+          () -> {
+            closed.add("last");
+            throw lastFailure;
+          });
+      setField(null, "plugin", rig.plugin);
+
+      assertSame(original, rig.closeOpened(original));
+
+      assertEquals(List.of("last", "middle", "first"), closed);
+      assertArrayEquals(new Throwable[] {lastFailure, middleFailure}, original.getSuppressed());
+      assertSame(previous, TFMCCore.getInstance());
+      try (Rig recovered = new Rig()) {
+        assertFalse(recovered.commands.isClosed());
+        assertFalse(recovered.whistleConfig.isClosed());
+      }
+    }
+  }
+
+  @Test
+  void rigCloseRestoresThePluginEvenWhenCleanupItselfFails() throws Exception {
+    TFMCCore previous = TFMCCore.getInstance();
+    try (Rig rig = new Rig()) {
+      IOException cleanupFailure = new IOException("resource cleanup failed");
+      rig.track(
+          () -> {
+            throw cleanupFailure;
+          });
+      setField(null, "plugin", rig.plugin);
+
+      assertSame(cleanupFailure, assertThrows(IOException.class, rig::close));
+
+      assertSame(previous, TFMCCore.getInstance());
+      try (Rig recovered = new Rig()) {
+        assertFalse(recovered.stones.isClosed());
+        assertFalse(recovered.stats.isClosed());
+      }
+    }
+  }
+
+  @Test
+  void soundLookupLeavesUnknownKeysAbsentUntilExplicitlyRegistered() {
+    assertRegistryLookup(Sound.class, RegistryKey.SOUND_EVENT, Sound.ENTITY_PLAYER_LEVELUP);
+  }
+
+  @Test
+  void enchantmentLookupLeavesUnknownKeysAbsentUntilExplicitlyRegistered() {
+    assertRegistryLookup(Enchantment.class, RegistryKey.ENCHANTMENT, Enchantment.FORTUNE);
+  }
+
+  @Test
+  void effectLookupLeavesUnknownKeysAbsentUntilExplicitlyRegistered() {
+    assertRegistryLookup(PotionEffectType.class, RegistryKey.MOB_EFFECT, PotionEffectType.GLOWING);
+  }
+
+  @Test
+  void damageLookupLeavesUnknownKeysAbsentUntilExplicitlyRegistered() {
+    assertRegistryLookup(DamageType.class, RegistryKey.DAMAGE_TYPE, DamageType.GENERIC);
+  }
+
+  @SuppressWarnings("deprecation")
+  private static <T extends Keyed> void assertRegistryLookup(
+      Class<T> type, RegistryKey<T> registryKey, T bootstrappedConstant) {
+    TestRegistryAccess access = new TestRegistryAccess();
+    Registry<T> registry = access.getRegistry(type);
+    Registry<T> keyedRegistry = access.getRegistry(registryKey);
+    assertSame(bootstrappedConstant, registry.get(bootstrappedConstant.getKey()));
+    assertSame(bootstrappedConstant, keyedRegistry.get(bootstrappedConstant.getKey()));
+    NamespacedKey unknown = new NamespacedKey("tfmc_test", "missing_" + UUID.randomUUID());
+    assertNull(registry.get(unknown));
+    assertNull(keyedRegistry.get(unknown));
+
+    T registered = registry.getOrThrow(unknown);
+
+    assertNotNull(registered);
+    assertEquals(unknown, registered.getKey());
+    assertSame(registered, registry.get(unknown));
+    assertSame(registered, keyedRegistry.get(unknown));
+    assertSame(registered, keyedRegistry.getOrThrow(unknown));
   }
 
   @Test
@@ -456,121 +588,151 @@ class PluginLifecycleCoverageTest {
     final MockedConstruction<WhistleListener> whistles;
     final MockedConstruction<StoneListener> stones;
     final MockedConstruction<TfmcCommand> commands;
+    final List<AutoCloseable> opened = new ArrayList<>();
+    boolean closed;
     LifecycleEventHandler<ReloadableRegistrarEvent<Commands>> commandHandler;
     StoneItems stoneItemsArgument;
     TfmcCooldowns cooldowns;
     Executor commandExecutor;
 
     Rig() throws Exception {
-      setField(null, "plugin", null);
-      Files.createDirectories(folder);
-      doReturn(folder.toFile()).when(plugin).getDataFolder();
-      doReturn(server).when(plugin).getServer();
-      doReturn(logger).when(plugin).getLogger();
-      doReturn(coreCommand).when(plugin).getCommand("tcore");
-      doReturn(silentCommand).when(plugin).getCommand("silentpermission");
-      doReturn(lifecycle).when(plugin).getLifecycleManager();
-      doAnswer(
-              call -> {
-                String name = call.getArgument(0);
-                try (var input = TFMCCore.class.getClassLoader().getResourceAsStream(name)) {
-                  assertNotNull(input, "Bundled resource " + name);
-                  Files.copy(input, folder.resolve(name));
-                }
-                return null;
-              })
-          .when(plugin)
-          .saveResource(anyString(), eq(false));
-      when(server.getPluginManager()).thenReturn(manager);
-      when(server.getScheduler()).thenReturn(scheduler);
-      doReturn(List.of(player)).when(server).getOnlinePlayers();
-      when(player.isOnline()).thenReturn(true);
-      when(configLoader.loadConfig(any())).thenReturn(true);
-      when(drops.load(any())).thenReturn(true);
-      when(stations.load(any())).thenReturn(true);
-      when(statsConfig.loadChecked(any())).thenReturn(true);
-      when(tfmc.load(any())).thenReturn(true);
-      when(tfmc.string("booster.import-conditionalevents-event")).thenReturn("old_booster");
-      doAnswer(
-              call -> {
-                listeners.add(call.getArgument(0));
-                return null;
-              })
-          .when(manager)
-          .registerEvents(any(), eq(plugin));
-      doAnswer(
-              call -> {
-                commandHandler = call.getArgument(1);
-                return null;
-              })
-          .when(lifecycle)
-          .registerEventHandler(eq(LifecycleEvents.COMMANDS), any(LifecycleEventHandler.class));
-      setField(plugin, "configLoader", configLoader);
-      setField(plugin, "dropLoader", drops);
-      setField(plugin, "stationLoader", stations);
-      setField(plugin, "statsConfig", statsConfig);
-      VehiclesStatConfig vehicles = mock(VehiclesStatConfig.class);
-      when(vehicles.loadChecked(any())).thenReturn(true);
-      setField(plugin, "vehiclesStatConfig", vehicles);
-      RpCharactersStatConfig characters = mock(RpCharactersStatConfig.class);
-      when(characters.loadChecked(any())).thenReturn(true);
-      setField(plugin, "rpCharactersStatConfig", characters);
-      AdvancedCraftingStatConfig crafting = mock(AdvancedCraftingStatConfig.class);
-      when(crafting.loadChecked(any())).thenReturn(true);
-      setField(plugin, "advancedCraftingStatConfig", crafting);
-      SkillsStatConfig skills = mock(SkillsStatConfig.class);
-      when(skills.loadChecked(any())).thenReturn(true);
-      setField(plugin, "skillsStatConfig", skills);
-      FactionsStatConfig factions = mock(FactionsStatConfig.class);
-      when(factions.loadChecked(any())).thenReturn(true);
-      setField(plugin, "factionsStatConfig", factions);
-      setField(plugin, "tfmcConfig", tfmc);
-      setField(plugin, "coreManager", mock(CoreManager.class));
-      setField(plugin, "dropManager", mock(DropManager.class));
-      setField(plugin, "stationManager", mock(StationManager.class));
-      setField(plugin, "commands", coreExecutor);
-      setField(plugin, "tabCompletion", tabCompletion);
-      whistleConfig = mockStatic(WhistleConfigLoader.class);
-      whistleConfig.when(() -> WhistleConfigLoader.load(any(File.class))).thenReturn(true);
-      stoneConfig = mockStatic(LorestoneConfigLoader.class);
-      stoneConfig.when(() -> LorestoneConfigLoader.load(any(File.class))).thenReturn(true);
-      stats = mockStatic(StatManager.class);
-      stats.when(StatManager::getInstance).thenReturn(statManager);
-      registry = mockStatic(StatCategoryRegistry.class);
-      sqlite = mockStatic(SqliteProvider.class);
-      sqlite.when(SqliteProvider::isAvailable).thenReturn(true);
-      xaero = mockStatic(XaeroFairPlayListener.class);
-      itemsAdder = mockStatic(ItemsAdder.class);
-      whistles = mockConstruction(WhistleListener.class);
-      stones =
-          mockConstruction(
-              StoneListener.class,
-              (listener, context) ->
-                  stoneItemsArgument = (StoneItems) context.arguments().getFirst());
-      commands =
-          mockConstruction(
-              TfmcCommand.class,
-              (command, context) -> {
-                assertSame(tfmc, context.arguments().get(0));
-                cooldowns = (TfmcCooldowns) context.arguments().get(1);
-                commandExecutor = (Executor) context.arguments().get(5);
-                when(command.build()).thenReturn(commandNode);
-              });
+      try {
+        setField(null, "plugin", null);
+        Files.createDirectories(folder);
+        doReturn(folder.toFile()).when(plugin).getDataFolder();
+        doReturn(server).when(plugin).getServer();
+        doReturn(logger).when(plugin).getLogger();
+        doReturn(coreCommand).when(plugin).getCommand("tcore");
+        doReturn(silentCommand).when(plugin).getCommand("silentpermission");
+        doReturn(lifecycle).when(plugin).getLifecycleManager();
+        doAnswer(
+                call -> {
+                  String name = call.getArgument(0);
+                  try (var input = TFMCCore.class.getClassLoader().getResourceAsStream(name)) {
+                    assertNotNull(input, "Bundled resource " + name);
+                    Files.copy(input, folder.resolve(name));
+                  }
+                  return null;
+                })
+            .when(plugin)
+            .saveResource(anyString(), eq(false));
+        when(server.getPluginManager()).thenReturn(manager);
+        when(server.getScheduler()).thenReturn(scheduler);
+        doReturn(List.of(player)).when(server).getOnlinePlayers();
+        when(player.isOnline()).thenReturn(true);
+        when(configLoader.loadConfig(any())).thenReturn(true);
+        when(drops.load(any())).thenReturn(true);
+        when(stations.load(any())).thenReturn(true);
+        when(statsConfig.loadChecked(any())).thenReturn(true);
+        when(tfmc.load(any())).thenReturn(true);
+        when(tfmc.string("booster.import-conditionalevents-event")).thenReturn("old_booster");
+        doAnswer(
+                call -> {
+                  listeners.add(call.getArgument(0));
+                  return null;
+                })
+            .when(manager)
+            .registerEvents(any(), eq(plugin));
+        doAnswer(
+                call -> {
+                  commandHandler = call.getArgument(1);
+                  return null;
+                })
+            .when(lifecycle)
+            .registerEventHandler(eq(LifecycleEvents.COMMANDS), any(LifecycleEventHandler.class));
+        setField(plugin, "configLoader", configLoader);
+        setField(plugin, "dropLoader", drops);
+        setField(plugin, "stationLoader", stations);
+        setField(plugin, "statsConfig", statsConfig);
+        VehiclesStatConfig vehicles = mock(VehiclesStatConfig.class);
+        when(vehicles.loadChecked(any())).thenReturn(true);
+        setField(plugin, "vehiclesStatConfig", vehicles);
+        RpCharactersStatConfig characters = mock(RpCharactersStatConfig.class);
+        when(characters.loadChecked(any())).thenReturn(true);
+        setField(plugin, "rpCharactersStatConfig", characters);
+        AdvancedCraftingStatConfig crafting = mock(AdvancedCraftingStatConfig.class);
+        when(crafting.loadChecked(any())).thenReturn(true);
+        setField(plugin, "advancedCraftingStatConfig", crafting);
+        SkillsStatConfig skills = mock(SkillsStatConfig.class);
+        when(skills.loadChecked(any())).thenReturn(true);
+        setField(plugin, "skillsStatConfig", skills);
+        FactionsStatConfig factions = mock(FactionsStatConfig.class);
+        when(factions.loadChecked(any())).thenReturn(true);
+        setField(plugin, "factionsStatConfig", factions);
+        setField(plugin, "tfmcConfig", tfmc);
+        setField(plugin, "coreManager", mock(CoreManager.class));
+        setField(plugin, "dropManager", mock(DropManager.class));
+        setField(plugin, "stationManager", mock(StationManager.class));
+        setField(plugin, "commands", coreExecutor);
+        setField(plugin, "tabCompletion", tabCompletion);
+        whistleConfig = track(mockStatic(WhistleConfigLoader.class));
+        whistleConfig.when(() -> WhistleConfigLoader.load(any(File.class))).thenReturn(true);
+        stoneConfig = track(mockStatic(LorestoneConfigLoader.class));
+        stoneConfig.when(() -> LorestoneConfigLoader.load(any(File.class))).thenReturn(true);
+        stats = track(mockStatic(StatManager.class));
+        stats.when(StatManager::getInstance).thenReturn(statManager);
+        registry = track(mockStatic(StatCategoryRegistry.class));
+        sqlite = track(mockStatic(SqliteProvider.class));
+        sqlite.when(SqliteProvider::isAvailable).thenReturn(true);
+        xaero = track(mockStatic(XaeroFairPlayListener.class));
+        itemsAdder = track(mockStatic(ItemsAdder.class));
+        whistles = track(mockConstruction(WhistleListener.class));
+        stones =
+            track(
+                mockConstruction(
+                    StoneListener.class,
+                    (listener, context) ->
+                        stoneItemsArgument = (StoneItems) context.arguments().getFirst()));
+        commands =
+            track(
+                mockConstruction(
+                    TfmcCommand.class,
+                    (command, context) -> {
+                      assertSame(tfmc, context.arguments().get(0));
+                      cooldowns = (TfmcCooldowns) context.arguments().get(1);
+                      commandExecutor = (Executor) context.arguments().get(5);
+                      when(command.build()).thenReturn(commandNode);
+                    }));
+      } catch (Exception | Error failure) {
+        closeOpened(failure);
+        throw failure;
+      }
+    }
+
+    private <T extends AutoCloseable> T track(T resource) {
+      opened.add(resource);
+      return resource;
+    }
+
+    private Throwable closeOpened(Throwable failure) {
+      if (closed) return failure;
+      closed = true;
+      while (!opened.isEmpty()) {
+        try {
+          opened.removeLast().close();
+        } catch (Exception | Error cleanupFailure) {
+          failure = retainFailure(failure, cleanupFailure);
+        }
+      }
+      try {
+        setField(null, "plugin", previous);
+      } catch (Exception | Error cleanupFailure) {
+        failure = retainFailure(failure, cleanupFailure);
+      }
+      return failure;
+    }
+
+    private Throwable retainFailure(Throwable failure, Throwable cleanupFailure) {
+      if (failure == null) return cleanupFailure;
+      if (failure != cleanupFailure) failure.addSuppressed(cleanupFailure);
+      return failure;
     }
 
     @Override
     public void close() throws Exception {
-      commands.close();
-      stones.close();
-      whistles.close();
-      itemsAdder.close();
-      xaero.close();
-      sqlite.close();
-      registry.close();
-      stats.close();
-      stoneConfig.close();
-      whistleConfig.close();
-      setField(null, "plugin", previous);
+      Throwable failure = closeOpened(null);
+      if (failure instanceof Exception exception) throw exception;
+      if (failure instanceof Error error) throw error;
     }
   }
 
