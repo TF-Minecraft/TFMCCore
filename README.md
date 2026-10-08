@@ -12,7 +12,7 @@ These features give other TF-Minecraft plugins common building blocks while also
 - **Animal whistles** — highlight nearby supported animals to help players locate them.
 - **Shared gameplay rules** — custom drop handling and station interactions connect everyday world actions to server content.
 - **Player utilities** — shared player commands and resource-pack delivery support everyday server use.
-- **Book appearance** — optionally hides the default glint on signed books, including letters and book skins, through ProtocolLib.
+- **Book appearance** — optionally hides the default glint on signed books through ProtocolLib.
 - **Cross-plugin statistics** — records supported vehicle, character, crafting, skill, and faction events for staff queries.
 
 TFMC Core works alongside the server's specialist plugins, connecting their systems with the smaller details that make the roleplay world feel consistent.
