@@ -74,6 +74,7 @@ public class TFMCCore extends JavaPlugin{
     private StoneListener stoneListener;
     private StoneItems stoneItems;
     private net.tfminecraft.tfmccore.resourcepack.MultipartPackService multipartPacks;
+    private net.tfminecraft.tfmccore.resourcepack.PackTextureGuard textureGuard;
 
     @Override
     public void onEnable() {
@@ -85,6 +86,13 @@ public class TFMCCore extends JavaPlugin{
         initStats();
         registerListeners();
         if (getServer().getPluginManager().isPluginEnabled("ItemsAdder")) {
+            int maxTextureSize = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
+                    new File(getDataFolder(), "config.yml")).getInt("resource-pack.max-texture-size", 16384);
+            if (maxTextureSize > 0) {
+                textureGuard = new net.tfminecraft.tfmccore.resourcepack.PackTextureGuard(this, new File(
+                        getServer().getPluginManager().getPlugin("ItemsAdder").getDataFolder(), "output/generated.zip").toPath(),
+                        maxTextureSize);
+            }
             try {
                 // The event precedes ItemsAdder's modern-atlas finalizer. Revalidate
                 // its ordering before enabling this transformation on a new version.
@@ -162,6 +170,7 @@ public class TFMCCore extends JavaPlugin{
     public void onDisable() {
         if (tfmcCommand != null) tfmcCommand.shutdown();
         if (multipartPacks != null) multipartPacks.close();
+        if (textureGuard != null) textureGuard.close();
         if (stoneListener != null) {
             stoneListener.refundAll();
         }

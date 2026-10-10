@@ -12,6 +12,7 @@ These features give other TF-Minecraft plugins common building blocks while also
 - **Animal whistles** — highlight nearby supported animals to help players locate them.
 - **Shared gameplay rules** — custom drop handling and station interactions connect everyday world actions to server content.
 - **Player utilities** — shared player commands and resource-pack delivery support everyday server use.
+- **Resource-pack texture guard** — warns the console and staff when the ItemsAdder pack holds a texture over 16384 px, which stops the whole pack loading on most Intel graphics.
 - **Book appearance** — optionally hides the default glint on signed books through ProtocolLib.
 - **Cross-plugin statistics** — records supported vehicle, character, crafting, skill, and faction events for staff queries.
 
