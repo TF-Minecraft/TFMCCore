@@ -48,6 +48,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
+import net.kyori.adventure.text.Component;
 
 @SuppressWarnings("deprecation")
 class StoneListenerCoverageTest {
@@ -121,6 +122,10 @@ class StoneListenerCoverageTest {
               cannot-apply: 'blacklisted'
               stacked: 'stacked target'
               expired: 'expired prompt'
+              cleared-lore: 'lore cleared'
+              no-lore: 'no lore'
+              pick-colour: 'pick colour'
+              invalid-colour: 'bad colour'
             """);
     assertTrue(LorestoneConfigLoader.load(configuration.toFile()));
     plugin = mock(TFMCCore.class);
@@ -219,6 +224,7 @@ class StoneListenerCoverageTest {
     verify(timeouts.get(1).task(), never()).cancel();
     assertTrue(chat("Fresh name").isCancelled(), "The new prompt must still be pending");
     callbacks.get(1).run();
+    listener.chooseColour(player, "none");
     assertEquals("§rFresh name", stacks.get(second).name);
     assertEquals(2, remaining.getAmount());
     assertEquals(1, refunds.size());
@@ -432,6 +438,7 @@ class StoneListenerCoverageTest {
     ItemStack expected = inventoryContents[7];
     chat("New name");
     callbacks.getFirst().run();
+    listener.chooseColour(player, "gold");
     assertRefunded(Kind.NAME, "item moved");
     assertSame(expected, inventoryContents[7]);
     verify(inventory, never()).setItem(anyInt(), any());
@@ -448,6 +455,169 @@ class StoneListenerCoverageTest {
     assertRefunded(Kind.LORE, "line limit 3");
     assertEquals(original, stacks.get(target).lore);
     verify(stacks.get(target).meta, never()).setLore(anyList());
+    verify(inventory, never()).setItem(anyInt(), any());
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "click, gold, §r§6Sword",
+    "chat, Dark Blue, §r§1Sword",
+    "chat, #FF8800, §r§x§f§f§8§8§0§0Sword",
+    "click, none, §rSword"
+  })
+  void plainNamesOfferThePaletteAndApplyThePickedColour(String via, String colour, String name) {
+    ItemStack target = target("target", 1, null);
+    begin(Kind.NAME, 1, 7, target);
+    chat("Sword");
+    callbacks.getFirst().run();
+    assertNull(stacks.get(target).name, "The name waits for its colour");
+    verify(player).sendMessage(any(Component.class));
+    verify(player).sendMessage("pick colour");
+    verify(timeouts.getFirst().task(), never()).cancel();
+    if (via.equals("click")) {
+      listener.chooseColour(player, colour);
+    } else {
+      assertTrue(chat(colour).isCancelled());
+      callbacks.get(1).run();
+    }
+    assertEquals(name, stacks.get(target).name);
+    verify(inventory).setItem(7, target);
+    verify(player).sendMessage("name applied");
+    verify(timeouts.getFirst().task()).cancel();
+    assertTrue(refunds.isEmpty());
+    assertFalse(chat("ordinary chat").isCancelled());
+  }
+
+  @Test
+  void chatArrivingWhileTheNameIsProcessedIsStillCaptured() {
+    ItemStack target = target("target", 1, null);
+    begin(Kind.NAME, 1, 7, target);
+    chat("Sword");
+    // A second message lands on the async thread before the first one is processed.
+    assertTrue(chat("gold").isCancelled());
+    callbacks.getFirst().run();
+    callbacks.get(1).run();
+    assertEquals("§r§6Sword", stacks.get(target).name);
+    assertTrue(refunds.isEmpty());
+  }
+
+  @Test
+  void aQueuedColourAnswerLosesToAnEarlierClickAndEditsOnce() {
+    ItemStack target = target("target", 1, null);
+    begin(Kind.NAME, 1, 7, target);
+    chat("Sword");
+    callbacks.getFirst().run();
+    assertTrue(chat("gold").isCancelled());
+    listener.chooseColour(player, "red");
+    callbacks.get(1).run();
+    assertEquals("§r§cSword", stacks.get(target).name);
+    verify(inventory, times(1)).setItem(7, target);
+    verify(player).sendMessage("expired prompt");
+    assertTrue(refunds.isEmpty());
+  }
+
+  @Test
+  void aQueuedColourAnswerAfterATimeoutRefundsOnceAndKeepsANewPrompt() {
+    ItemStack target = target("target", 1, null);
+    begin(Kind.NAME, 1, 7, target);
+    chat("Sword");
+    callbacks.getFirst().run();
+    assertTrue(chat("gold").isCancelled());
+    timeouts.getFirst().callback().run();
+    ItemStack next = target("next", 1, null);
+    begin(Kind.NAME, 1, 9, next);
+    callbacks.get(1).run();
+    assertNull(stacks.get(target).name);
+    assertEquals(1, refunds.size());
+    verify(player).sendMessage("expired prompt");
+    assertTrue(chat("Shield").isCancelled(), "The new prompt must survive the stale answer");
+  }
+
+  @Test
+  void anUnknownColourKeepsThePromptOpenUntilAValidPick() {
+    ItemStack target = target("target", 1, null);
+    begin(Kind.NAME, 1, 7, target);
+    chat("Sword");
+    callbacks.getFirst().run();
+    chat("sparkly");
+    callbacks.get(1).run();
+    verify(player).sendMessage("bad colour");
+    assertNull(stacks.get(target).name);
+    assertTrue(refunds.isEmpty());
+    listener.chooseColour(player, "red");
+    assertEquals("§r§cSword", stacks.get(target).name);
+  }
+
+  @Test
+  void cancellingAtTheColourStepRefundsWithoutRenaming() {
+    ItemStack target = target("target", 1, null);
+    begin(Kind.NAME, 1, 7, target);
+    chat("Sword");
+    callbacks.getFirst().run();
+    listener.chooseColour(player, "cancel");
+    assertRefunded(Kind.NAME, "cancelled");
+    assertNull(stacks.get(target).name);
+  }
+
+  @Test
+  void timingOutAtTheColourStepRefundsAndLaterClicksExpire() {
+    ItemStack target = target("target", 1, null);
+    begin(Kind.NAME, 1, 7, target);
+    chat("Sword");
+    callbacks.getFirst().run();
+    timeouts.getFirst().callback().run();
+    assertRefunded(Kind.NAME, "timeout");
+    listener.chooseColour(player, "gold");
+    verify(player).sendMessage("expired prompt");
+    assertNull(stacks.get(target).name);
+    assertEquals(1, refunds.size());
+  }
+
+  @Test
+  void colourClicksBeforeANameIsTypedAreRejected() {
+    ItemStack target = target("target", 1, null);
+    begin(Kind.NAME, 1, 7, target);
+    listener.chooseColour(player, "gold");
+    verify(player).sendMessage("expired prompt");
+    assertTrue(chat("Sword").isCancelled(), "The prompt is still waiting for the name");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"clear", " CLEAR "})
+  void clearRemovesAllLoreAndConsumesTheStone(String message) {
+    ItemStack target = target("target", 1, List.of("one", "two"));
+    begin(Kind.LORE, 1, 7, target);
+    chat(message);
+    callbacks.getFirst().run();
+    assertNull(stacks.get(target).lore);
+    verify(inventory).setItem(7, target);
+    verify(player).sendMessage("lore cleared");
+    verify(timeouts.getFirst().task()).cancel();
+    assertTrue(refunds.isEmpty());
+  }
+
+  @Test
+  void clearIgnoresATinyLengthLimitThatStillAppliesToLoreText() {
+    LorestoneConfig.maxLength = 3;
+    ItemStack target = target("target", 1, List.of("one"));
+    begin(Kind.LORE, 1, 7, target);
+    chat("clear");
+    callbacks.getFirst().run();
+    assertNull(stacks.get(target).lore);
+    verify(player).sendMessage("lore cleared");
+    begin(Kind.LORE, 1, 7, target);
+    chat("long");
+    callbacks.get(1).run();
+    verify(player).sendMessage("length limit 3");
+  }
+
+  @Test
+  void clearingAnItemWithoutLoreRefunds() {
+    ItemStack target = target("target", 1, null);
+    begin(Kind.LORE, 1, 7, target);
+    chat("clear");
+    callbacks.getFirst().run();
+    assertRefunded(Kind.LORE, "no lore");
     verify(inventory, never()).setItem(anyInt(), any());
   }
 
@@ -635,11 +805,12 @@ class StoneListenerCoverageTest {
     when(meta.getLore()).thenAnswer(call -> data.lore == null ? null : new ArrayList<>(data.lore));
     doAnswer(
             call -> {
-              data.lore = new ArrayList<>(call.getArgument(0));
+              List<String> lore = call.getArgument(0);
+              data.lore = lore == null ? null : new ArrayList<>(lore);
               return null;
             })
         .when(meta)
-        .setLore(anyList());
+        .setLore(any());
     doAnswer(
             call -> {
               data.name = call.getArgument(0);

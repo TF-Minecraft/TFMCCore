@@ -278,6 +278,7 @@ class PluginLifecycleCoverageTest {
   void startupRegistersCommandsListenersAndTheActualLifecycleAndQuitCallbacks() throws Exception {
     try (Rig rig = new Rig()) {
       assertNull(TFMCCore.getStoneItems());
+      assertNull(TFMCCore.getStoneListener());
       rig.plugin.onDisable();
 
       rig.plugin.onEnable();
@@ -293,6 +294,7 @@ class PluginLifecycleCoverageTest {
       assertEquals(9, rig.listeners.size());
       assertTrue(rig.listeners.contains(rig.whistles.constructed().getFirst()));
       assertTrue(rig.listeners.contains(rig.stones.constructed().getFirst()));
+      assertSame(rig.stones.constructed().getFirst(), TFMCCore.getStoneListener());
       rig.xaero.verify(() -> XaeroFairPlayListener.send(rig.player));
       verify(rig.player).updateCommands();
       Commands registrar = mock(Commands.class);

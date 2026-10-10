@@ -249,6 +249,10 @@ public class TFMCCore extends JavaPlugin{
         return plugin == null ? null : plugin.stoneItems;
     }
 
+    public static StoneListener getStoneListener() {
+        return plugin == null ? null : plugin.stoneListener;
+    }
+
     public boolean reloadStatsConfigs() {
         boolean ok = statsConfig.loadChecked(new File(getDataFolder(), "stats.yml"));
         ok &= vehiclesStatConfig.loadChecked(new File(getDataFolder(), "vehiclestats.yml"));

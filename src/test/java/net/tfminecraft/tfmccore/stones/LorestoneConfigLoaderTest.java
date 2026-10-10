@@ -39,6 +39,10 @@ class LorestoneConfigLoaderTest {
     private String stackedMessage;
     private String expiredMessage;
     private String gaveMessage;
+    private String clearedLoreMessage;
+    private String noLoreMessage;
+    private String pickColourMessage;
+    private String invalidColourMessage;
 
     @BeforeEach
     void saveConfig() {
@@ -63,6 +67,10 @@ class LorestoneConfigLoaderTest {
         stackedMessage = LorestoneConfig.stackedMessage;
         expiredMessage = LorestoneConfig.expiredMessage;
         gaveMessage = LorestoneConfig.gaveMessage;
+        clearedLoreMessage = LorestoneConfig.clearedLoreMessage;
+        noLoreMessage = LorestoneConfig.noLoreMessage;
+        pickColourMessage = LorestoneConfig.pickColourMessage;
+        invalidColourMessage = LorestoneConfig.invalidColourMessage;
     }
 
     @org.junit.jupiter.api.AfterEach
@@ -87,6 +95,10 @@ class LorestoneConfigLoaderTest {
         LorestoneConfig.stackedMessage = stackedMessage;
         LorestoneConfig.expiredMessage = expiredMessage;
         LorestoneConfig.gaveMessage = gaveMessage;
+        LorestoneConfig.clearedLoreMessage = clearedLoreMessage;
+        LorestoneConfig.noLoreMessage = noLoreMessage;
+        LorestoneConfig.pickColourMessage = pickColourMessage;
+        LorestoneConfig.invalidColourMessage = invalidColourMessage;
     }
 
     @Test
@@ -118,6 +130,10 @@ class LorestoneConfigLoaderTest {
                   stacked: "&cStacked."
                   expired: "&7Expired."
                   gave: "&aGave."
+                  cleared-lore: "&aCleared."
+                  no-lore: "&cNo lore."
+                  pick-colour: "&aColour?"
+                  invalid-colour: "&cBad colour."
                 """);
 
         assertTrue(LorestoneConfigLoader.load(configPath.toFile()));
@@ -142,6 +158,10 @@ class LorestoneConfigLoaderTest {
         assertEquals("&cStacked.", LorestoneConfig.stackedMessage);
         assertEquals("&7Expired.", LorestoneConfig.expiredMessage);
         assertEquals("&aGave.", LorestoneConfig.gaveMessage);
+        assertEquals("&aCleared.", LorestoneConfig.clearedLoreMessage);
+        assertEquals("&cNo lore.", LorestoneConfig.noLoreMessage);
+        assertEquals("&aColour?", LorestoneConfig.pickColourMessage);
+        assertEquals("&cBad colour.", LorestoneConfig.invalidColourMessage);
     }
 
     @Test

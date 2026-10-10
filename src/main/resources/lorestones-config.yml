@@ -19,10 +19,14 @@ settings:
 
 # Messages (& colour codes and &#RRGGBB hex, empty = don't send)
 messages:
-  prompt-lore: "&aType the lore line in chat (&e%timeout%s&a). Type &ccancel&a to abort."
+  prompt-lore: "&aType the lore line in chat (&e%timeout%s&a), or &eclear&a to remove all lore. Type &ccancel&a to abort."
   prompt-name: "&aType the new item name in chat (&e%timeout%s&a). Type &ccancel&a to abort."
   applied-lore: "&aLore added."
   applied-name: "&aItem renamed."
+  cleared-lore: "&aLore cleared."
+  no-lore: "&cThis item has no lore to clear. Stone refunded."
+  pick-colour: "&aClick a colour above, or type one in chat (&6gold&a, &#ff8800#ff8800&a). Type &ccancel&a to abort."
+  invalid-colour: "&cUnknown colour. Click one above, or type a name like &6gold&c or a hex like &f#ff8800&c."
   cancelled: "&7Cancelled, stone refunded."
   timeout: "&7Timed out, stone refunded."
   item-moved: "&cThe target item moved. Stone refunded."

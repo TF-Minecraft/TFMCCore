@@ -30,7 +30,9 @@ import net.tfminecraft.tfmccore.util.TextUtil;
 public class StoneListener implements Listener {
 
     // Snapshot of the target lets us notice the item being moved while the player types.
-    private record Pending(Kind kind, int slot, ItemStack snapshot, ItemStack stone, BukkitTask timeout) {
+    // text is the typed name while a namestone waits for its colour, null before that.
+    private record Pending(Kind kind, int slot, ItemStack snapshot, ItemStack stone, BukkitTask timeout,
+            String text) {
     }
 
     // Read from the async chat thread, written from the main thread only.
@@ -115,7 +117,7 @@ public class StoneListener implements Listener {
 
         // getSlot(), not getRawSlot(): the clicked inventory is the player inventory.
         pending.put(player.getUniqueId(),
-                new Pending(kind, event.getSlot(), target.clone(), one, timeout));
+                new Pending(kind, event.getSlot(), target.clone(), one, timeout, null));
 
         items.msg(player,
                 kind == Kind.LORE ? LorestoneConfig.promptLoreMessage : LorestoneConfig.promptNameMessage,
@@ -146,35 +148,86 @@ public class StoneListener implements Listener {
         abort(event.getPlayer(), null);
     }
 
-    // Main thread: everything that touches the inventory.
-    // Keep the existing legacy text representation, formatting, and exact-string comparisons.
-    @SuppressWarnings("deprecation")
-    private void apply(Player player, String raw, Pending pd) {
-        // A timeout or quit may have ended this prompt before its queued chat is processed.
-        if (!pending.remove(player.getUniqueId(), pd)) {
+    // Main thread: the palette's click runs /tcore stones colour <colour>, which lands here.
+    public void chooseColour(Player player, String input) {
+        Pending pd = pending.get(player.getUniqueId());
+        if (pd == null || pd.text() == null) {
             items.msg(player, LorestoneConfig.expiredMessage);
             return;
         }
-        pd.timeout().cancel();
+        apply(player, input, pd);
+    }
+
+    // Main thread: everything that touches the inventory.
+    private void apply(Player player, String raw, Pending queued) {
+        // A timeout or quit may have ended this prompt before its queued chat is processed.
+        // The entry stays in the map until a terminal outcome, so async chat arriving
+        // meanwhile is still recognised as an answer and never leaks to public chat.
+        // The timeout task identifies one stone use across its steps: an answer queued
+        // before the name was processed still answers the colour step, but never a new prompt.
+        Pending pd = pending.get(player.getUniqueId());
+        if (pd == null || pd.timeout() != queued.timeout()) {
+            items.msg(player, LorestoneConfig.expiredMessage);
+            return;
+        }
 
         String text = TextUtil.sanitize(raw);
 
         if (text.equalsIgnoreCase("cancel")) {
+            end(player, pd);
             refund(player, pd, LorestoneConfig.cancelledMessage);
             return;
         }
 
+        // Second step of a rename: the name is known, this answer picks its colour.
+        if (pd.text() != null) {
+            String code = StoneColours.code(text);
+            if (code == null) {
+                items.msg(player, LorestoneConfig.invalidColourMessage);
+                return;
+            }
+            end(player, pd);
+            edit(player, pd, code + pd.text());
+            return;
+        }
+
         if (text.isBlank()) {
+            end(player, pd);
             refund(player, pd, LorestoneConfig.emptyMessage);
             return;
         }
 
+        // The limit is for typed text; "clear" is a command and must work under a tiny max-length.
+        boolean clear = pd.kind() == Kind.LORE && text.equalsIgnoreCase("clear");
         int max = LorestoneConfig.maxLength;
-        if (text.length() > max) {
+        if (!clear && text.length() > max) {
+            end(player, pd);
             refund(player, pd, LorestoneConfig.tooLongMessage, "%max%", String.valueOf(max));
             return;
         }
 
+        // A plain name gets the colour palette; one typed with & codes already has its colour.
+        if (pd.kind() == Kind.NAME && TextUtil.color(text).equals(text)) {
+            pending.replace(player.getUniqueId(), pd,
+                    new Pending(pd.kind(), pd.slot(), pd.snapshot(), pd.stone(), pd.timeout(), text));
+            player.sendMessage(StoneColours.palette());
+            items.msg(player, LorestoneConfig.pickColourMessage);
+            return;
+        }
+
+        end(player, pd);
+        edit(player, pd, text);
+    }
+
+    // Terminal outcome: close the prompt before the item is edited or the stone refunded.
+    private void end(Player player, Pending pd) {
+        pending.remove(player.getUniqueId(), pd);
+        pd.timeout().cancel();
+    }
+
+    // Keep the existing legacy text representation, formatting, and exact-string comparisons.
+    @SuppressWarnings("deprecation")
+    private void edit(Player player, Pending pd, String text) {
         PlayerInventory inventory = player.getInventory();
         ItemStack current = inventory.getItem(pd.slot());
         if (current == null || current.getAmount() != 1 || !current.isSimilar(pd.snapshot())) {
@@ -195,8 +248,16 @@ public class StoneListener implements Listener {
         // prefix rather than only the newly added one. Upgrade path is the Paper API plus
         // Adventure components, which carry decorations explicitly and don't need this.
         String formatted = "§r" + TextUtil.color(text);
+        String applied;
 
-        if (pd.kind() == Kind.LORE) {
+        if (pd.kind() == Kind.LORE && text.equalsIgnoreCase("clear")) {
+            if (!meta.hasLore()) {
+                refund(player, pd, LorestoneConfig.noLoreMessage);
+                return;
+            }
+            meta.setLore(null);
+            applied = LorestoneConfig.clearedLoreMessage;
+        } else if (pd.kind() == Kind.LORE) {
             List<String> lore = meta.hasLore() ? new ArrayList<>(meta.getLore()) : new ArrayList<>();
             lore.replaceAll(l -> l.startsWith("§r") ? l : "§r" + l);
             int maxLines = LorestoneConfig.maxLoreLines;
@@ -206,16 +267,15 @@ public class StoneListener implements Listener {
             }
             lore.add(formatted);
             meta.setLore(lore);
+            applied = LorestoneConfig.appliedLoreMessage;
         } else {
             meta.setDisplayName(formatted);
+            applied = LorestoneConfig.appliedNameMessage;
         }
 
         current.setItemMeta(meta);
         inventory.setItem(pd.slot(), current);
-
-        items.msg(player, pd.kind() == Kind.LORE
-                ? LorestoneConfig.appliedLoreMessage
-                : LorestoneConfig.appliedNameMessage);
+        items.msg(player, applied);
     }
 
     // Ends a prompt without applying anything. A null message stays silent (quit, shutdown).
