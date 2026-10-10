@@ -145,6 +145,39 @@ class PackTextureGuardTest {
   }
 
   @Test
+  void aPackRewrittenDuringTheScanIsScannedAgain() throws IOException {
+    PackTextureGuard guard = new PackTextureGuard(plugin, pack, 16384);
+    write(Map.of(ATLAS, png(16448, 64)), 2000);
+    try (var scan = org.mockito.Mockito.mockStatic(PackTextureGuard.class, CALLS_REAL_METHODS)) {
+      scan.when(() -> PackTextureGuard.scan(pack, 16384)).thenAnswer(call -> {
+        Files.setLastModifiedTime(pack, FileTime.fromMillis(2500));
+        return List.of();
+      });
+      guard.check();
+    }
+    assertTrue(guard.found().isEmpty());
+    // The next check scans the final file and reports it.
+    guard.check();
+    assertEquals(1, guard.found().size());
+  }
+
+  @Test
+  void aScanThatFinishesAfterDisableReportsNothingAndDisableRacesAreHarmless() throws IOException {
+    write(Map.of(ATLAS, png(16448, 64)), 2000);
+    PackTextureGuard closed = new PackTextureGuard(plugin, pack, 16384);
+    closed.close();
+    closed.check();
+    assertTrue(closed.found().isEmpty());
+    verify(logger, never()).severe(anyString());
+
+    when(scheduler.runTask(eq(plugin), any(Runnable.class)))
+        .thenThrow(new org.bukkit.plugin.IllegalPluginAccessException("disabled"));
+    PackTextureGuard racing = new PackTextureGuard(plugin, pack, 16384);
+    assertDoesNotThrow(racing::check);
+    verify(logger).severe(anyString());
+  }
+
+  @Test
   void closingWithoutATimerIsSafe() {
     assertDoesNotThrow(() -> new PackTextureGuard(plugin, pack, 16384).close());
   }

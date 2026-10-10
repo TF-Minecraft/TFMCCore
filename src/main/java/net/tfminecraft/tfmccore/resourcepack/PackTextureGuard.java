@@ -35,6 +35,7 @@ public final class PackTextureGuard implements Listener, AutoCloseable {
     private final BukkitTask task;
     private Stamp scanned;
     private volatile List<Oversized> found = List.of();
+    private volatile boolean closed;
 
     public PackTextureGuard(JavaPlugin plugin, Path pack, int limit) {
         this.plugin = plugin;
@@ -49,21 +50,32 @@ public final class PackTextureGuard implements Listener, AutoCloseable {
         Stamp stamp;
         List<Oversized> oversized;
         try {
-            var attributes = Files.readAttributes(pack, BasicFileAttributes.class);
-            stamp = new Stamp(attributes.size(), attributes.lastModifiedTime().toMillis());
+            stamp = stamp();
             if (stamp.equals(scanned)) return;
             oversized = scan(pack, limit);
+            // Rewritten while it was read: the result may mix two builds, so scan the final file next time.
+            if (!stamp.equals(stamp())) return;
         } catch (IOException | RuntimeException error) {
             return;
         }
+        if (closed) return;
         scanned = stamp;
         found = oversized;
         if (oversized.isEmpty()) return;
         plugin.getLogger().severe(summary(oversized) + " Players whose GPU allows at most " + limit
                 + " px (most Intel graphics) cannot load the pack: " + list(oversized));
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
-            for (Player player : plugin.getServer().getOnlinePlayers()) warn(player);
-        });
+        try {
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                for (Player player : plugin.getServer().getOnlinePlayers()) warn(player);
+            });
+        } catch (org.bukkit.plugin.IllegalPluginAccessException disabled) {
+            // The plugin disabled while this scan ran; the console still has the warning.
+        }
+    }
+
+    private Stamp stamp() throws IOException {
+        var attributes = Files.readAttributes(pack, BasicFileAttributes.class);
+        return new Stamp(attributes.size(), attributes.lastModifiedTime().toMillis());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -111,5 +123,8 @@ public final class PackTextureGuard implements Listener, AutoCloseable {
 
     List<Oversized> found() { return found; }
 
-    @Override public void close() { if (task != null) task.cancel(); }
+    @Override public void close() {
+        closed = true;
+        if (task != null) task.cancel();
+    }
 }
