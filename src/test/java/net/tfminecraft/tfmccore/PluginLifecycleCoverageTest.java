@@ -41,6 +41,7 @@ import net.tfminecraft.tfmccore.manager.CoreManager;
 import net.tfminecraft.tfmccore.manager.DropManager;
 import net.tfminecraft.tfmccore.manager.StationManager;
 import net.tfminecraft.tfmccore.resourcepack.MultipartPackService;
+import net.tfminecraft.tfmccore.resourcepack.PackTextureGuard;
 import net.tfminecraft.tfmccore.resourcepack.ResourcePackListener;
 import net.tfminecraft.tfmccore.stats.StatCategory;
 import net.tfminecraft.tfmccore.stats.StatCategoryRegistry;
@@ -484,6 +485,9 @@ class PluginLifecycleCoverageTest {
 
         assertDoesNotThrow(rig.plugin::onEnable);
         rig.plugin.sendResourcePack(rig.player);
+        assertEquals(
+            !scenario.equals("absent"),
+            rig.listeners.stream().anyMatch(PackTextureGuard.class::isInstance));
 
         if (scenario.equals("multipart")) {
           MultipartPackService service = multipart.constructed().getFirst();
