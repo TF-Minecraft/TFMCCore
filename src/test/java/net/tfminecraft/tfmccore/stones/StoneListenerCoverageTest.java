@@ -489,6 +489,51 @@ class StoneListenerCoverageTest {
   }
 
   @Test
+  void chatArrivingWhileTheNameIsProcessedIsStillCaptured() {
+    ItemStack target = target("target", 1, null);
+    begin(Kind.NAME, 1, 7, target);
+    chat("Sword");
+    // A second message lands on the async thread before the first one is processed.
+    assertTrue(chat("gold").isCancelled());
+    callbacks.getFirst().run();
+    callbacks.get(1).run();
+    assertEquals("§r§6Sword", stacks.get(target).name);
+    assertTrue(refunds.isEmpty());
+  }
+
+  @Test
+  void aQueuedColourAnswerLosesToAnEarlierClickAndEditsOnce() {
+    ItemStack target = target("target", 1, null);
+    begin(Kind.NAME, 1, 7, target);
+    chat("Sword");
+    callbacks.getFirst().run();
+    assertTrue(chat("gold").isCancelled());
+    listener.chooseColour(player, "red");
+    callbacks.get(1).run();
+    assertEquals("§r§cSword", stacks.get(target).name);
+    verify(inventory, times(1)).setItem(7, target);
+    verify(player).sendMessage("expired prompt");
+    assertTrue(refunds.isEmpty());
+  }
+
+  @Test
+  void aQueuedColourAnswerAfterATimeoutRefundsOnceAndKeepsANewPrompt() {
+    ItemStack target = target("target", 1, null);
+    begin(Kind.NAME, 1, 7, target);
+    chat("Sword");
+    callbacks.getFirst().run();
+    assertTrue(chat("gold").isCancelled());
+    timeouts.getFirst().callback().run();
+    ItemStack next = target("next", 1, null);
+    begin(Kind.NAME, 1, 9, next);
+    callbacks.get(1).run();
+    assertNull(stacks.get(target).name);
+    assertEquals(1, refunds.size());
+    verify(player).sendMessage("expired prompt");
+    assertTrue(chat("Shield").isCancelled(), "The new prompt must survive the stale answer");
+  }
+
+  @Test
   void anUnknownColourKeepsThePromptOpenUntilAValidPick() {
     ItemStack target = target("target", 1, null);
     begin(Kind.NAME, 1, 7, target);

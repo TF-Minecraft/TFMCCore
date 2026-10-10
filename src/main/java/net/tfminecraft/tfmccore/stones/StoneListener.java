@@ -159,9 +159,14 @@ public class StoneListener implements Listener {
     }
 
     // Main thread: everything that touches the inventory.
-    private void apply(Player player, String raw, Pending pd) {
+    private void apply(Player player, String raw, Pending queued) {
         // A timeout or quit may have ended this prompt before its queued chat is processed.
-        if (!pending.remove(player.getUniqueId(), pd)) {
+        // The entry stays in the map until a terminal outcome, so async chat arriving
+        // meanwhile is still recognised as an answer and never leaks to public chat.
+        // The timeout task identifies one stone use across its steps: an answer queued
+        // before the name was processed still answers the colour step, but never a new prompt.
+        Pending pd = pending.get(player.getUniqueId());
+        if (pd == null || pd.timeout() != queued.timeout()) {
             items.msg(player, LorestoneConfig.expiredMessage);
             return;
         }
@@ -169,7 +174,7 @@ public class StoneListener implements Listener {
         String text = TextUtil.sanitize(raw);
 
         if (text.equalsIgnoreCase("cancel")) {
-            pd.timeout().cancel();
+            end(player, pd);
             refund(player, pd, LorestoneConfig.cancelledMessage);
             return;
         }
@@ -178,17 +183,16 @@ public class StoneListener implements Listener {
         if (pd.text() != null) {
             String code = StoneColours.code(text);
             if (code == null) {
-                pending.put(player.getUniqueId(), pd);
                 items.msg(player, LorestoneConfig.invalidColourMessage);
                 return;
             }
-            pd.timeout().cancel();
+            end(player, pd);
             edit(player, pd, code + pd.text());
             return;
         }
 
         if (text.isBlank()) {
-            pd.timeout().cancel();
+            end(player, pd);
             refund(player, pd, LorestoneConfig.emptyMessage);
             return;
         }
@@ -197,22 +201,28 @@ public class StoneListener implements Listener {
         boolean clear = pd.kind() == Kind.LORE && text.equalsIgnoreCase("clear");
         int max = LorestoneConfig.maxLength;
         if (!clear && text.length() > max) {
-            pd.timeout().cancel();
+            end(player, pd);
             refund(player, pd, LorestoneConfig.tooLongMessage, "%max%", String.valueOf(max));
             return;
         }
 
         // A plain name gets the colour palette; one typed with & codes already has its colour.
         if (pd.kind() == Kind.NAME && TextUtil.color(text).equals(text)) {
-            pending.put(player.getUniqueId(),
+            pending.replace(player.getUniqueId(), pd,
                     new Pending(pd.kind(), pd.slot(), pd.snapshot(), pd.stone(), pd.timeout(), text));
             player.sendMessage(StoneColours.palette());
             items.msg(player, LorestoneConfig.pickColourMessage);
             return;
         }
 
-        pd.timeout().cancel();
+        end(player, pd);
         edit(player, pd, text);
+    }
+
+    // Terminal outcome: close the prompt before the item is edited or the stone refunded.
+    private void end(Player player, Pending pd) {
+        pending.remove(player.getUniqueId(), pd);
+        pd.timeout().cancel();
     }
 
     // Keep the existing legacy text representation, formatting, and exact-string comparisons.
