@@ -552,6 +552,21 @@ class StoneListenerCoverageTest {
   }
 
   @Test
+  void clearIgnoresATinyLengthLimitThatStillAppliesToLoreText() {
+    LorestoneConfig.maxLength = 3;
+    ItemStack target = target("target", 1, List.of("one"));
+    begin(Kind.LORE, 1, 7, target);
+    chat("clear");
+    callbacks.getFirst().run();
+    assertNull(stacks.get(target).lore);
+    verify(player).sendMessage("lore cleared");
+    begin(Kind.LORE, 1, 7, target);
+    chat("long");
+    callbacks.get(1).run();
+    verify(player).sendMessage("length limit 3");
+  }
+
+  @Test
   void clearingAnItemWithoutLoreRefunds() {
     ItemStack target = target("target", 1, null);
     begin(Kind.LORE, 1, 7, target);

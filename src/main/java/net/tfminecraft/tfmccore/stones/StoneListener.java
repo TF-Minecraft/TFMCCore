@@ -193,8 +193,10 @@ public class StoneListener implements Listener {
             return;
         }
 
+        // The limit is for typed text; "clear" is a command and must work under a tiny max-length.
+        boolean clear = pd.kind() == Kind.LORE && text.equalsIgnoreCase("clear");
         int max = LorestoneConfig.maxLength;
-        if (text.length() > max) {
+        if (!clear && text.length() > max) {
             pd.timeout().cancel();
             refund(player, pd, LorestoneConfig.tooLongMessage, "%max%", String.valueOf(max));
             return;
