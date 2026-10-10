@@ -8,7 +8,7 @@ These features give other TF-Minecraft plugins common building blocks while also
 
 ## Features
 
-- **Personalized items** — lorestones add descriptive text and namestones change an item's name through an in-game prompt.
+- **Personalized items** — lorestones add descriptive text (or `clear` it all) and namestones rename an item, then offer a clickable colour palette, through an in-game prompt.
 - **Animal whistles** — highlight nearby supported animals to help players locate them.
 - **Shared gameplay rules** — custom drop handling and station interactions connect everyday world actions to server content.
 - **Player utilities** — shared player commands and resource-pack delivery support everyday server use.

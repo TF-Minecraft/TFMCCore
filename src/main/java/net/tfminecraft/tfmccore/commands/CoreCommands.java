@@ -13,6 +13,7 @@ import org.bukkit.inventory.ItemStack;
 import net.tfminecraft.tfmccore.TFMCCore;
 import net.tfminecraft.tfmccore.stones.LorestoneConfig;
 import net.tfminecraft.tfmccore.stones.StoneItems;
+import net.tfminecraft.tfmccore.stones.StoneListener;
 
 public class CoreCommands implements CommandExecutor {
     public String cmd1 = "tcore";
@@ -117,6 +118,14 @@ public class CoreCommands implements CommandExecutor {
     }
 
     private boolean handleStones(CommandSender sender, String[] args) {
+        // The namestone colour palette clicks run this, so players need it without admin.
+        if (args.length == 3 && (args[1].equalsIgnoreCase("colour") || args[1].equalsIgnoreCase("color"))) {
+            StoneListener listener = TFMCCore.getStoneListener();
+            if (sender instanceof Player player && listener != null) {
+                listener.chooseColour(player, args[2]);
+            }
+            return true;
+        }
         if (!sender.hasPermission(ADMIN_PERMISSION)) {
             sender.sendMessage("You do not have permission to use this command.");
             return true;

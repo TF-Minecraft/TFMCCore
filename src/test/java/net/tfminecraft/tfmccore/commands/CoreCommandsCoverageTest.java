@@ -26,6 +26,7 @@ import java.util.stream.Stream;
 import net.tfminecraft.tfmccore.TFMCCore;
 import net.tfminecraft.tfmccore.stones.LorestoneConfig;
 import net.tfminecraft.tfmccore.stones.StoneItems;
+import net.tfminecraft.tfmccore.stones.StoneListener;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -296,6 +297,36 @@ class CoreCommandsCoverageTest {
 
     verify(player).sendMessage("You do not have permission to use this command.");
     verifyNoInteractions(items, playerInventory, targetInventory);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"colour", "COLOR"})
+  void anyPlayerCanPickANamestoneColourWithoutAdmin(String subcommand) {
+    StoneListener listener = mock(StoneListener.class);
+    core.when(TFMCCore::getStoneListener).thenReturn(listener);
+
+    assertTrue(run(player, "stones", subcommand, "gold"));
+
+    verify(listener).chooseColour(player, "gold");
+    verify(player, never()).sendMessage(org.mockito.ArgumentMatchers.anyString());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void colourPicksFromConsoleOrWithoutStonesAreIgnored(boolean fromConsole) {
+    StoneListener listener = mock(StoneListener.class);
+    core.when(TFMCCore::getStoneListener).thenReturn(fromConsole ? listener : null);
+
+    assertTrue(run(fromConsole ? console : player, "stones", "colour", "gold"));
+
+    verifyNoInteractions(listener);
+  }
+
+  @Test
+  void colourWithoutAChoiceFallsBackToTheAdminCheck() {
+    assertTrue(run(player, "stones", "colour"));
+
+    verify(player).sendMessage("You do not have permission to use this command.");
   }
 
   @ParameterizedTest

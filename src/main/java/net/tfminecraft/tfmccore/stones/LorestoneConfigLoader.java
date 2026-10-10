@@ -37,6 +37,10 @@ public final class LorestoneConfigLoader {
         LorestoneConfig.promptNameMessage = config.getString("messages.prompt-name", LorestoneConfig.promptNameMessage);
         LorestoneConfig.appliedLoreMessage = config.getString("messages.applied-lore", LorestoneConfig.appliedLoreMessage);
         LorestoneConfig.appliedNameMessage = config.getString("messages.applied-name", LorestoneConfig.appliedNameMessage);
+        LorestoneConfig.clearedLoreMessage = config.getString("messages.cleared-lore", LorestoneConfig.clearedLoreMessage);
+        LorestoneConfig.noLoreMessage = config.getString("messages.no-lore", LorestoneConfig.noLoreMessage);
+        LorestoneConfig.pickColourMessage = config.getString("messages.pick-colour", LorestoneConfig.pickColourMessage);
+        LorestoneConfig.invalidColourMessage = config.getString("messages.invalid-colour", LorestoneConfig.invalidColourMessage);
         LorestoneConfig.cancelledMessage = config.getString("messages.cancelled", LorestoneConfig.cancelledMessage);
         LorestoneConfig.timeoutMessage = config.getString("messages.timeout", LorestoneConfig.timeoutMessage);
         LorestoneConfig.itemMovedMessage = config.getString("messages.item-moved", LorestoneConfig.itemMovedMessage);

@@ -12,10 +12,14 @@ public final class LorestoneConfig {
     public static int promptTimeoutSeconds = 60;
     public static int maxLoreLines = 10;
 
-    public static String promptLoreMessage = "&aType the lore line in chat (&e%timeout%s&a). Type &ccancel&a to abort.";
+    public static String promptLoreMessage = "&aType the lore line in chat (&e%timeout%s&a), or &eclear&a to remove all lore. Type &ccancel&a to abort.";
     public static String promptNameMessage = "&aType the new item name in chat (&e%timeout%s&a). Type &ccancel&a to abort.";
     public static String appliedLoreMessage = "&aLore added.";
     public static String appliedNameMessage = "&aItem renamed.";
+    public static String clearedLoreMessage = "&aLore cleared.";
+    public static String noLoreMessage = "&cThis item has no lore to clear. Stone refunded.";
+    public static String pickColourMessage = "&aClick a colour above, or type one in chat (&6gold&a, &#ff8800#ff8800&a). Type &ccancel&a to abort.";
+    public static String invalidColourMessage = "&cUnknown colour. Click one above, or type a name like &6gold&c or a hex like &f#ff8800&c.";
     public static String cancelledMessage = "&7Cancelled, stone refunded.";
     public static String timeoutMessage = "&7Timed out, stone refunded.";
     public static String itemMovedMessage = "&cThe target item moved. Stone refunded.";
