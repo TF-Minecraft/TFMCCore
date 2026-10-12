@@ -50,7 +50,7 @@ class CoreTabCompletionCoverageTest {
       when(sender.hasPermission("tfmccore.reload")).thenReturn(false);
       when(sender.hasPermission("tfmccore.admin")).thenReturn(true);
       assertEquals(
-          List.of("stats", "pack", "reload", "stones"),
+          List.of("stats", "pack", "reload", "stones", "packretry"),
           tab.onTabComplete(sender, command, "tcore", new String[] {""}));
       assertEquals(
           List.of("Alice"),

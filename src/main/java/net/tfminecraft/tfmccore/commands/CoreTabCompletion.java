@@ -32,6 +32,7 @@ public final class CoreTabCompletion implements TabCompleter {
             }
             if (sender.hasPermission(ADMIN_PERMISSION)) {
                 completions.add("stones");
+                completions.add("packretry");
             }
             TabCleaner.cleanTab(completions, args);
             return completions;

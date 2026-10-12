@@ -45,6 +45,18 @@ public class CoreCommands implements CommandExecutor {
             return true;
         }
 
+        if (args[0].equalsIgnoreCase("packretry")) {
+            if (args.length != 2 || !sender.hasPermission(ADMIN_PERMISSION)) {
+                sender.sendMessage("Usage: /tcore packretry <player>");
+                return true;
+            }
+            Player target = Bukkit.getPlayerExact(args[1]);
+            if (target == null) sender.sendMessage(args[1] + " is not online.");
+            else if (TFMCCore.getInstance().retryRequiredPack(target)) sender.sendMessage("Retrying the resource pack for " + target.getName() + ".");
+            else sender.sendMessage(target.getName() + "'s resource pack has not failed.");
+            return true;
+        }
+
         if (args[0].equalsIgnoreCase("stats")) {
             return statsCommand.handle(sender, Arrays.copyOfRange(args, 1, args.length));
         }
@@ -211,6 +223,7 @@ public class CoreCommands implements CommandExecutor {
         }
         if (sender.hasPermission(ADMIN_PERMISSION)) {
             sender.sendMessage("§e/tcore stones give <lorestone|namestone> [player] [amount]");
+            sender.sendMessage("§e/tcore packretry <player>");
         }
     }
 }

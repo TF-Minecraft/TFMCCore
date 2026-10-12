@@ -54,9 +54,19 @@ class PackDeliveryQueueTest {
     }
 
     @Test void quitAndOfflinePlayersDiscardQueuedDelivery() {
-        queue.add(player, hash, false, null, fallback); queue.quit(playerId); queue.drain(); verifyNoInteractions(service);
+        queue.add(player, hash, false, null, fallback); queue.quit(playerId); queue.drain();
         queue.add(player, hash, false, null, fallback); when(player.isOnline()).thenReturn(false);
-        queue.drain(); queue.close(); verifyNoInteractions(service, fallback);
+        queue.drain(); queue.close();
+        verify(service, never()).sendPublished(any(), any(), anyBoolean(), any(), any()); verifyNoInteractions(fallback);
+    }
+
+    @Test void requiredLoadDropsWaitingAndIncomingDeliveriesWithoutFallback() {
+        queue.add(player, hash, false, null, fallback);
+        when(service.gated(playerId)).thenReturn(true);
+        queue.add(player, "b".repeat(40), false, null, fallback);
+        clock.set(TimeUnit.SECONDS.toNanos(61)); queue.drain();
+        when(service.gated(playerId)).thenReturn(false); queue.drain(); queue.close();
+        verify(service, never()).sendPublished(any(), any(), anyBoolean(), any(), any()); verifyNoInteractions(fallback);
     }
 
     @Test void shutdownReleasesOriginalOnce() {

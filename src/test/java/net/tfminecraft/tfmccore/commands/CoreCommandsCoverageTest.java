@@ -151,6 +151,7 @@ class CoreCommandsCoverageTest {
     verify(console).sendMessage("§e/tcore stats <category> [player]");
     verify(console).sendMessage(contains("§e/tcore reload"));
     verify(console).sendMessage(contains("§e/tcore stones give"));
+    verify(console).sendMessage("§e/tcore packretry <player>");
   }
 
   @Test
@@ -203,6 +204,33 @@ class CoreCommandsCoverageTest {
     assertTrue(run(player, "pack", "Offline"));
 
     verify(player).sendMessage("Specify an online player: /tcore pack <player>");
+    verifyNoInteractions(plugin);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void packRetryAsksCoreToRetryOnlyTheNamedOnlinePlayer(boolean retried) {
+    when(console.hasPermission("tfmccore.admin")).thenReturn(true);
+    when(plugin.retryRequiredPack(target)).thenReturn(retried);
+
+    assertTrue(run(console, "packretry", "Target"));
+
+    verify(plugin).retryRequiredPack(target);
+    verify(console)
+        .sendMessage(
+            retried ? "Retrying the resource pack for Target." : "Target's resource pack has not failed.");
+  }
+
+  @Test
+  void packRetryNeedsAdminAndExactlyOneOnlinePlayer() {
+    assertTrue(run(player, "packretry", "Target"));
+    verify(player).sendMessage("Usage: /tcore packretry <player>");
+    when(console.hasPermission("tfmccore.admin")).thenReturn(true);
+    assertTrue(run(console, "packretry"));
+    assertTrue(run(console, "packretry", "Target", "extra"));
+    verify(console, org.mockito.Mockito.times(2)).sendMessage("Usage: /tcore packretry <player>");
+    assertTrue(run(console, "packretry", "Offline"));
+    verify(console).sendMessage("Offline is not online.");
     verifyNoInteractions(plugin);
   }
 

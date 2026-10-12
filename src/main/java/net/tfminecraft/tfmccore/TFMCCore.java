@@ -75,6 +75,7 @@ public class TFMCCore extends JavaPlugin{
     private StoneItems stoneItems;
     private net.tfminecraft.tfmccore.resourcepack.MultipartPackService multipartPacks;
     private net.tfminecraft.tfmccore.resourcepack.PackTextureGuard textureGuard;
+    private net.tfminecraft.tfmccore.resourcepack.RequiredPackGate requiredPacks;
 
     @Override
     public void onEnable() {
@@ -131,6 +132,14 @@ public class TFMCCore extends JavaPlugin{
                 getLogger().warning("ItemsAdder integration unavailable: " + unavailable.getMessage());
             }
         }
+        if (org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(new File(getDataFolder(), "config.yml"))
+                .getBoolean("resource-pack.require-on-join", false)) {
+            var itemsAdder = getServer().getPluginManager().isPluginEnabled("ItemsAdder")
+                    ? getServer().getPluginManager().getPlugin("ItemsAdder").getDataFolder().toPath() : null;
+            requiredPacks = net.tfminecraft.tfmccore.resourcepack.RequiredPackGate.create(this, multipartPacks, itemsAdder);
+            if (multipartPacks != null) multipartPacks.gate(requiredPacks::loading);
+            getServer().getPluginManager().registerEvents(requiredPacks, this);
+        }
         getCommand(commands.cmd1).setExecutor(commands);
         getCommand(commands.cmd1).setTabCompleter(tabCompletion);
         SilentPermissionCommand silentPermission = new SilentPermissionCommand();
@@ -169,6 +178,7 @@ public class TFMCCore extends JavaPlugin{
     @Override
     public void onDisable() {
         if (tfmcCommand != null) tfmcCommand.shutdown();
+        if (requiredPacks != null) requiredPacks.close();
         if (multipartPacks != null) multipartPacks.close();
         if (textureGuard != null) textureGuard.close();
         if (stoneListener != null) {
@@ -180,10 +190,18 @@ public class TFMCCore extends JavaPlugin{
     }
 
     public void sendResourcePack(org.bukkit.entity.Player player) {
-        if (multipartPacks != null) multipartPacks.send(player);
+        // The join gate's required request, fallback included, must not be replaced.
+        if (requiredPacks != null && requiredPacks.loading(player.getUniqueId()))
+            player.sendMessage("Your resource pack is already loading.");
+        else if (multipartPacks != null) multipartPacks.send(player);
         else if (getServer().getPluginManager().isPluginEnabled("ItemsAdder"))
             dev.lone.itemsadder.api.ItemsAdder.applyResourcepack(player);
         else player.sendMessage("TFMC resource pack is currently unavailable.");
+    }
+
+    /** Retries the required pack only for an online player whose current attempt failed. */
+    public boolean retryRequiredPack(org.bukkit.entity.Player player) {
+        return requiredPacks != null && requiredPacks.retry(player);
     }
 
     public static TFMCCore getInstance() {
