@@ -21,6 +21,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 /** Owns only the opt-in multipart delivery path; ItemsAdder remains the single-pack fallback. */
 public final class MultipartPackService implements Listener, AutoCloseable {
     private record Stamp(long size, String modified, String cacheModified) {}
+    private record Request(Player player, PackLoadTracker tracker) {}
     private final JavaPlugin plugin;
     private final Path source, cache;
     private final URI publicUrl;
@@ -28,8 +29,10 @@ public final class MultipartPackService implements Listener, AutoCloseable {
     private final PackHttpServer http;
     private final ScheduledExecutorService worker;
     private final ItemsAdderPackBridge bridge;
+    private final StandardPackFallback standard;
     // Accessed only on the server thread. Callback tasks carry request identity.
-    private final Map<UUID, PackLoadTracker> requests = new HashMap<>();
+    private final Map<UUID, Request> requests = new HashMap<>();
+    private java.util.function.Predicate<UUID> gated = player -> false;
     private final Map<UUID, Long> cooldown = new HashMap<>();
     private volatile PackPublisher.Bundle current;
     private volatile boolean closed;
@@ -51,6 +54,7 @@ public final class MultipartPackService implements Listener, AutoCloseable {
             }
         } catch (IllegalArgumentException error) { throw new IOException("Invalid multipart public URL", error); }
         source = itemsAdder.resolve("output/generated.zip");
+        standard = new StandardPackFallback(plugin, itemsAdder);
         cache = itemsAdder.resolve("storage/cache/various/resourcepacks.yml");
         Path root = plugin.getDataFolder().toPath().resolve("resource-pack/parts-v1");
         publisher = new PackPublisher(root);
@@ -120,8 +124,32 @@ public final class MultipartPackService implements Listener, AutoCloseable {
         cooldown.put(player.getUniqueId(), now);
         PackPublisher.Bundle bundle = current;
         if (bundle == null) { fallback(player); return; }
-        send(player, bundle, false, null, () -> fallback(player));
+        send(player, bundle, false, null, false, () -> {}, () -> {}, () -> fallback(player));
     }
+
+    /**
+     * Required delivery for the join gate: the three parts under fresh IDs, then once the
+     * standard pack if they fail or time out. Completes once on the server thread with
+     * true only after every pack loaded; a decline or discard completes false.
+     */
+    public void sendRequired(Player player, java.util.function.Consumer<Boolean> completion) {
+        boolean[] completed = {false};
+        java.util.function.Consumer<Boolean> once = loaded -> {
+            if (!completed[0]) { completed[0] = true; completion.accept(loaded); }
+        };
+        if (closed || !player.isOnline()) { once.accept(false); return; }
+        bridge.quit(player.getUniqueId());
+        standard.cancel(player.getUniqueId());
+        PackPublisher.Bundle bundle = current;
+        if (bundle == null) { standard.send(player, once); return; }
+        send(player, bundle, true, StandardPackFallback.PROMPT, true,
+                () -> once.accept(true), () -> once.accept(false), () -> standard.send(player, once));
+    }
+
+    /** The join gate owns this player's pack; IA deliveries must neither replace nor replay it. */
+    public void gate(java.util.function.Predicate<UUID> owned) { gated = owned; }
+
+    boolean gated(UUID player) { return gated.test(player); }
 
     boolean loading(UUID player) { return requests.containsKey(player); }
 
@@ -130,76 +158,88 @@ public final class MultipartPackService implements Listener, AutoCloseable {
         PackPublisher.Bundle bundle = current;
         if (closed || !player.isOnline() || loading(player.getUniqueId())
                 || bundle == null || !bundle.sourceHash().equals(sourceHash)) return false;
-        send(player, bundle, required, prompt, fallback);
+        send(player, bundle, required, prompt, false, () -> {}, () -> {}, fallback);
         return true;
     }
 
-    private void send(Player player, PackPublisher.Bundle bundle, boolean required, Component prompt, Runnable fallback) {
+    // Fresh IDs keep a client's late answer for an older request off a newer one.
+    private void send(Player player, PackPublisher.Bundle bundle, boolean required, Component prompt, boolean fresh,
+            Runnable loaded, Runnable declined, Runnable fallback) {
         List<ResourcePackInfo> packs = new ArrayList<>();
         for (String part : PackPartitioner.PARTS) {
             String hash = bundle.hashes().get(part);
-            UUID id = UUID.nameUUIDFromBytes(("tfmc:" + part + ":" + hash).getBytes(StandardCharsets.UTF_8));
+            UUID id = fresh ? UUID.randomUUID()
+                    : UUID.nameUUIDFromBytes(("tfmc:" + part + ":" + hash).getBytes(StandardCharsets.UTF_8));
             packs.add(ResourcePackInfo.resourcePackInfo(id, publicUrl.resolve(bundle.sourceHash() + "/" + part + ".zip"), hash));
         }
         PackLoadTracker tracker = new PackLoadTracker(new HashSet<>(packs.stream().map(ResourcePackInfo::id).toList()));
-        requests.put(player.getUniqueId(), tracker);
+        Request request = new Request(player, tracker);
+        requests.put(player.getUniqueId(), request);
         try {
             player.sendResourcePacks(ResourcePackRequest.resourcePackRequest()
                     .packs(packs).replace(true).required(required).prompt(prompt)
                     .callback((id, status, audience) -> {
                         if (!closed && plugin.isEnabled()) {
-                            Bukkit.getScheduler().runTask(plugin, () -> status(player, tracker, id, status, fallback));
+                            Bukkit.getScheduler().runTask(plugin, () -> status(request, id, status, loaded, declined, fallback));
                         }
                     }).build());
             plugin.getLogger().info("Sent three resource-pack parts to " + player.getName() + " (" + bundle.sourceHash() + ")");
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                if (requests.remove(player.getUniqueId(), tracker) && player.isOnline()) {
+                if (requests.remove(player.getUniqueId(), request) && player.isOnline()) {
                     player.removeResourcePacks(tracker.ids());
                     player.sendMessage(Component.text("Resource-pack loading timed out. Trying the standard pack."));
                     fallback.run();
                 }
             }, 20L * 180);
         } catch (RuntimeException error) {
-            requests.remove(player.getUniqueId(), tracker);
+            requests.remove(player.getUniqueId(), request);
             player.removeResourcePacks(tracker.ids());
             plugin.getLogger().warning("Multipart request failed: " + error.getMessage());
             fallback.run();
         }
     }
 
-    private void status(Player player, PackLoadTracker tracker, UUID id, ResourcePackStatus status, Runnable fallback) {
-        if (closed || requests.get(player.getUniqueId()) != tracker || !player.isOnline()) return;
+    private void status(Request request, UUID id, ResourcePackStatus status, Runnable loaded, Runnable declined, Runnable fallback) {
+        Player player = request.player();
+        PackLoadTracker tracker = request.tracker();
+        if (closed || requests.get(player.getUniqueId()) != request || !player.isOnline()) return;
         boolean success = status == ResourcePackStatus.SUCCESSFULLY_LOADED;
         PackLoadTracker.Result result = tracker.accept(id, success, !status.intermediate() && !success);
         if (result == PackLoadTracker.Result.COMPLETE) {
-            requests.remove(player.getUniqueId(), tracker);
+            requests.remove(player.getUniqueId(), request);
             plugin.getLogger().info("All three resource-pack parts loaded for " + player.getName());
             player.sendMessage(Component.text("TFMC resource pack loaded."));
+            loaded.run();
         } else if (result == PackLoadTracker.Result.FAILED) {
-            requests.remove(player.getUniqueId(), tracker);
+            requests.remove(player.getUniqueId(), request);
             player.removeResourcePacks(tracker.ids());
             plugin.getLogger().warning("Multipart pack " + status + " for " + player.getName());
             // Respect an explicit decline; do not immediately prompt again.
             if (status != ResourcePackStatus.DECLINED && status != ResourcePackStatus.DISCARDED) {
                 player.sendMessage(Component.text("Could not load the split pack. Trying the standard pack."));
                 fallback.run();
-            }
+            } else declined.run();
         }
     }
 
     private void fallback(Player player) {
-        requests.remove(player.getUniqueId());
         bridge.passThrough(() -> ItemsAdder.applyResourcepack(player));
     }
 
     @EventHandler public void quit(PlayerQuitEvent event) {
-        bridge.quit(event.getPlayer().getUniqueId());
-        requests.remove(event.getPlayer().getUniqueId()); cooldown.remove(event.getPlayer().getUniqueId());
+        Player player = event.getPlayer();
+        UUID id = player.getUniqueId();
+        bridge.quit(id);
+        Request request = requests.get(id);
+        if (request != null && request.player() == player) requests.remove(id);
+        cooldown.remove(id);
+        standard.quit(player);
     }
 
     @Override public void close() {
         closed = true; current = null;
         bridge.close();
+        standard.close();
         worker.shutdownNow(); http.close();
         HandlerList.unregisterAll(this);
         requests.clear(); cooldown.clear();

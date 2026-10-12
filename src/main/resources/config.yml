@@ -6,6 +6,9 @@ resource-pack:
   # pixels. Most Intel graphics can't load textures over 16384 px, and one such texture
   # stops the whole pack loading for those players. 0 turns the check off.
   max-texture-size: 16384
+  # Send the pack as required when a player joins and publish its state as player
+  # metadata (tfmccore:required-pack = loading, ready or failed) for RPCharacters.
+  require-on-join: false
   # Opt-in. Requires ItemsAdder allow_other_plugins_resourcepacks: true.
   # Restart to change these settings; keep the existing ItemsAdder host for fallback.
   multipart:

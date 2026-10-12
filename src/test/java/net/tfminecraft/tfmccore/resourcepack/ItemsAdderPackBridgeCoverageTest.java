@@ -126,6 +126,27 @@ class ItemsAdderPackBridgeCoverageTest {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void itemsAdderPacksDuringARequiredLoadAreDroppedWithoutReplay(boolean gatedBeforeArrival) {
+    try (Fixture fixture = new Fixture()) {
+      Packet packet = fixture.packet();
+      when(fixture.service.gated(fixture.playerId)).thenReturn(gatedBeforeArrival);
+      fixture.listener.onPacketSending(packet.event());
+      fixture.mainTasks.removeFirst().run();
+      // The gate may start after the packet was queued; the next poll still drops it.
+      when(fixture.service.gated(fixture.playerId)).thenReturn(true);
+      fixture.poll.run();
+      when(fixture.service.gated(fixture.playerId)).thenReturn(false);
+      fixture.poll.run();
+      fixture.stop();
+
+      verify(packet.event()).setCancelled(true);
+      verify(fixture.service, never()).sendPublished(any(), any(), anyBoolean(), any(), any());
+      verify(fixture.manager, never()).sendServerPacket(any(), any(), anyBoolean());
+    }
+  }
+
   @Test
   void unsupportedPromptLayoutRetainsTheOriginalPacket() {
     try (Fixture fixture = new Fixture()) {
@@ -242,7 +263,7 @@ class ItemsAdderPackBridgeCoverageTest {
       verify(fixture.pollTask).cancel();
       verify(fixture.manager).sendServerPacket(fixture.player, packet.original(), false);
       fixture.poll.run();
-      verifyNoInteractions(fixture.service);
+      verify(fixture.service, never()).sendPublished(any(), any(), anyBoolean(), any(), any());
     }
   }
 
@@ -257,7 +278,7 @@ class ItemsAdderPackBridgeCoverageTest {
       fixture.poll.run();
       fixture.stop();
 
-      verifyNoInteractions(fixture.service);
+      verify(fixture.service, never()).sendPublished(any(), any(), anyBoolean(), any(), any());
       verify(fixture.manager, never()).sendServerPacket(any(), any(), anyBoolean());
     }
   }

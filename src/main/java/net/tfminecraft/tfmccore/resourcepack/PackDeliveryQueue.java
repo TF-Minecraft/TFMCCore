@@ -15,7 +15,9 @@ final class PackDeliveryQueue implements AutoCloseable {
 
     PackDeliveryQueue(MultipartPackService service, LongSupplier clock) { this.service = service; this.clock = clock; }
 
+    /** A delivery for a player whose required pack is loading is dropped, never replayed. */
     void add(Player player, String hash, boolean required, Component prompt, Runnable fallback) {
+        if (service.gated(player.getUniqueId())) { pending.remove(player.getUniqueId()); return; }
         pending.put(player.getUniqueId(), new Pending(player, hash, required, prompt, fallback,
                 clock.getAsLong() + TimeUnit.SECONDS.toNanos(60)));
     }
@@ -24,7 +26,7 @@ final class PackDeliveryQueue implements AutoCloseable {
     void drain() {
         for (Pending request : List.copyOf(pending.values())) {
             UUID id = request.player().getUniqueId();
-            if (!request.player().isOnline()) { pending.remove(id, request); continue; }
+            if (!request.player().isOnline() || service.gated(id)) { pending.remove(id, request); continue; }
             if (service.loading(id)) continue;
             if (service.sendPublished(request.player(), request.hash(), request.required(), request.prompt(), request.fallback())) {
                 pending.remove(id, request);

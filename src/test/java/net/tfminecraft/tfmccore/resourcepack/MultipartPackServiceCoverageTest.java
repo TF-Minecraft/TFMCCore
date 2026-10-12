@@ -554,6 +554,292 @@ class MultipartPackServiceCoverageTest {
     }
   }
 
+  // Required delivery for the join gate.
+
+  private final List<Boolean> results = new ArrayList<>();
+  private static final String PACK_URL = "http://127.0.0.1:9900/generated.zip";
+
+  private void packUrl(String url) {
+    itemsAdder.when(() -> ItemsAdder.getPackUrl(true)).thenReturn(url);
+  }
+
+  @Test
+  void requiredDeliveryCompletesTrueOnceOnlyAfterAllThreeFreshPartsLoad() throws Exception {
+    publish();
+    service.sendRequired(player, results::add);
+    ResourcePackRequest first = request();
+    assertTrue(first.required());
+    assertTrue(first.replace());
+    assertEquals(StandardPackFallback.PROMPT, first.prompt());
+    assertEquals(3, first.packs().size());
+    for (ResourcePackInfo pack : first.packs()) {
+      String part = Path.of(pack.uri().getPath()).getFileName().toString().replace(".zip", "");
+      assertNotEquals(
+          UUID.nameUUIDFromBytes(("tfmc:" + part + ":" + pack.hash()).getBytes(StandardCharsets.UTF_8)),
+          pack.id(),
+          "Required parts never reuse the stable manual IDs");
+    }
+    emit(first, first.packs().get(0).id(), ResourcePackStatus.ACCEPTED);
+    emit(first, first.packs().get(0).id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
+    emit(first, first.packs().get(1).id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
+    assertEquals(List.of(), results, "Two of three parts is still loading");
+    emit(first, first.packs().get(2).id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
+    assertEquals(List.of(true), results);
+    emit(first, first.packs().get(2).id(), ResourcePackStatus.FAILED_RELOAD);
+    timeouts.forEach(Runnable::run);
+    assertEquals(List.of(true), results);
+    itemsAdder.verify(() -> ItemsAdder.getPackUrl(anyBoolean()), never());
+
+    // A second attempt gets new IDs; the client's late answers to the first cannot reach it.
+    service.sendRequired(player, results::add);
+    ResourcePackRequest second = request();
+    assertTrue(
+        java.util.Collections.disjoint(
+            first.packs().stream().map(ResourcePackInfo::id).toList(),
+            second.packs().stream().map(ResourcePackInfo::id).toList()));
+    for (ResourcePackInfo pack : first.packs())
+      emit(first, pack.id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
+    assertEquals(List.of(true), results);
+    assertTrue(service.loading(playerId));
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = ResourcePackStatus.class,
+      names = {"FAILED_DOWNLOAD", "FAILED_RELOAD", "INVALID_URL"})
+  void partFailureRemovesThePartsThenSendsTheStandardPackOnce(ResourcePackStatus status)
+      throws Exception {
+    publish();
+    packUrl(PACK_URL);
+    service.sendRequired(player, results::add);
+    ResourcePackRequest parts = request();
+    emit(parts, parts.packs().get(0).id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
+    emit(parts, parts.packs().get(1).id(), status);
+    verify(player)
+        .removeResourcePacks(
+            new java.util.HashSet<>(parts.packs().stream().map(ResourcePackInfo::id).toList()));
+    ResourcePackRequest standard = request();
+    assertNotSame(parts, standard);
+    assertEquals(1, standard.packs().size());
+    ResourcePackInfo pack = standard.packs().getFirst();
+    assertEquals(java.net.URI.create(PACK_URL), pack.uri());
+    assertEquals(sourceHash, pack.hash());
+    assertTrue(standard.required());
+    assertTrue(standard.replace());
+    assertEquals(List.of(), results, "The gate stays loading through the fallback");
+    emit(parts, parts.packs().get(2).id(), status);
+    timeouts.getFirst().run();
+    emit(standard, pack.id(), ResourcePackStatus.ACCEPTED);
+    emit(standard, pack.id(), ResourcePackStatus.DOWNLOADED);
+    emit(standard, UUID.randomUUID(), ResourcePackStatus.SUCCESSFULLY_LOADED);
+    assertEquals(List.of(), results);
+    emit(standard, pack.id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
+    assertEquals(List.of(true), results);
+    emit(standard, pack.id(), ResourcePackStatus.FAILED_DOWNLOAD);
+    timeouts.forEach(Runnable::run);
+    assertEquals(List.of(true), results);
+    verify(player, times(2)).sendResourcePacks(any(ResourcePackRequest.class));
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = ResourcePackStatus.class,
+      names = {"FAILED_DOWNLOAD", "DECLINED", "DISCARDED"})
+  void aFailedStandardFallbackCompletesFalse(ResourcePackStatus status) throws Exception {
+    publish();
+    packUrl(PACK_URL);
+    service.sendRequired(player, results::add);
+    ResourcePackRequest parts = request();
+    emit(parts, parts.packs().getFirst().id(), ResourcePackStatus.FAILED_DOWNLOAD);
+    ResourcePackRequest standard = request();
+    emit(standard, standard.packs().getFirst().id(), status);
+    assertEquals(List.of(false), results);
+    verify(logger).warning("Standard resource pack " + status + " for Ada");
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = ResourcePackStatus.class,
+      names = {"DECLINED", "DISCARDED"})
+  void declinedPartsCompleteFalseWithoutAFallback(ResourcePackStatus status) throws Exception {
+    publish();
+    packUrl(PACK_URL);
+    service.sendRequired(player, results::add);
+    ResourcePackRequest parts = request();
+    emit(parts, parts.packs().getFirst().id(), status);
+    assertEquals(List.of(false), results);
+    verify(player, times(1)).sendResourcePacks(any(ResourcePackRequest.class));
+    itemsAdder.verify(() -> ItemsAdder.getPackUrl(anyBoolean()), never());
+  }
+
+  @Test
+  void timeoutsFallBackOnceThenFailAndRemoveTheStandardPack() throws Exception {
+    publish();
+    packUrl(PACK_URL);
+    service.sendRequired(player, results::add);
+    ResourcePackRequest parts = request();
+    timeouts.removeFirst().run();
+    verify(player)
+        .sendMessage(Component.text("Resource-pack loading timed out. Trying the standard pack."));
+    ResourcePackRequest standard = request();
+    UUID id = standard.packs().getFirst().id();
+    emit(parts, parts.packs().getFirst().id(), ResourcePackStatus.FAILED_DOWNLOAD);
+    assertEquals(1, timeouts.size(), "The parts may fall back only once");
+    timeouts.getFirst().run();
+    assertEquals(List.of(false), results);
+    verify(player).removeResourcePacks(id);
+    verify(logger).warning("Standard resource pack timed out for Ada");
+    emit(standard, id, ResourcePackStatus.SUCCESSFULLY_LOADED);
+    timeouts.getFirst().run();
+    assertEquals(List.of(false), results);
+  }
+
+  @Test
+  void anUnpublishedBundleSendsTheStandardPackDirectlyAndCachesItsHash() throws Exception {
+    start();
+    packUrl(PACK_URL);
+    service.sendRequired(player, results::add);
+    ResourcePackRequest standard = request();
+    assertEquals(sourceHash, standard.packs().getFirst().hash());
+    emit(standard, standard.packs().getFirst().id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
+    assertEquals(List.of(true), results);
+
+    // An unchanged source and cache reuse the hash read for that generation.
+    FileTime cached = Files.getLastModifiedTime(cache);
+    Files.writeString(cache, "last_hash: " + "0".repeat(40) + "\n");
+    Files.setLastModifiedTime(cache, cached);
+    service.sendRequired(player, results::add);
+    ResourcePackRequest again = request();
+    assertEquals(sourceHash, again.packs().getFirst().hash());
+    assertNotEquals(standard.packs().getFirst().id(), again.packs().getFirst().id());
+    emit(standard, standard.packs().getFirst().id(), ResourcePackStatus.FAILED_DOWNLOAD);
+    assertEquals(List.of(true), results, "A late answer to the earlier pack is ignored");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"no-url", "blank-url", "bad-url", "url-error", "no-hash", "no-source", "send-error", "timer-error"})
+  void anUnavailableStandardPackFailsClosed(String reason) throws Exception {
+    start();
+    packUrl(PACK_URL);
+    switch (reason) {
+      case "no-url" -> packUrl(null);
+      case "blank-url" -> packUrl(" ");
+      case "bad-url" -> packUrl("http://bad host/");
+      case "url-error" ->
+          itemsAdder
+              .when(() -> ItemsAdder.getPackUrl(true))
+              .thenThrow(new IllegalStateException("self-host off"));
+      case "no-hash" -> Files.writeString(cache, "other: 1\n");
+      case "no-source" -> Files.delete(source);
+      case "send-error" ->
+          doThrow(new IllegalStateException("closed channel"))
+              .when(player)
+              .sendResourcePacks(any(ResourcePackRequest.class));
+      case "timer-error" ->
+          when(scheduler.runTaskLater(eq(plugin), any(Runnable.class), eq(3600L)))
+              .thenThrow(new IllegalStateException("scheduler stopped"));
+      default -> throw new AssertionError(reason);
+    }
+    service.sendRequired(player, results::add);
+    assertEquals(List.of(false), results);
+    verify(logger).warning(startsWith("Standard resource pack unavailable for Ada: "));
+    if (reason.endsWith("-error") && !reason.equals("url-error"))
+      verify(player).removeResourcePacks(any(UUID.class));
+    else verify(player, never()).removeResourcePacks(any(UUID.class));
+  }
+
+  @Test
+  void aSourceRebuiltWhileItsHashIsReadIsNotSent() throws Exception {
+    start();
+    packUrl(PACK_URL);
+    try (var yaml =
+        mockStatic(org.bukkit.configuration.file.YamlConfiguration.class, CALLS_REAL_METHODS)) {
+      yaml.when(
+              () ->
+                  org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
+                      any(java.io.File.class)))
+          .thenAnswer(
+              call -> {
+                Files.setLastModifiedTime(source, FileTime.fromMillis(1234));
+                return call.callRealMethod();
+              });
+      service.sendRequired(player, results::add);
+    }
+    assertEquals(List.of(false), results);
+    verify(logger).warning("Standard resource pack unavailable for Ada: ItemsAdder pack is rebuilding");
+    verify(player, never()).sendResourcePacks(any(ResourcePackRequest.class));
+  }
+
+  @Test
+  void offlineClosedAndThrowingRequiredDeliveriesFailOrFallBack() throws Exception {
+    publish();
+    packUrl(PACK_URL);
+    when(player.isOnline()).thenReturn(false);
+    service.sendRequired(player, results::add);
+    assertEquals(List.of(false), results);
+    when(player.isOnline()).thenReturn(true);
+    doThrow(new IllegalStateException("closed channel"))
+        .doNothing()
+        .when(player)
+        .sendResourcePacks(any(ResourcePackRequest.class));
+    service.sendRequired(player, results::add);
+    verify(logger).warning("Multipart request failed: closed channel");
+    ResourcePackRequest standard = request();
+    assertEquals(1, standard.packs().size(), "A synchronous part failure falls back");
+    service.close();
+    service.sendRequired(player, results::add);
+    assertEquals(List.of(false, false), results);
+    standard.callback().packEventReceived(standard.packs().getFirst().id(), ResourcePackStatus.SUCCESSFULLY_LOADED, player);
+    assertTrue(callbacks.isEmpty(), "Closed fallbacks schedule nothing");
+    timeouts.forEach(Runnable::run);
+    assertEquals(List.of(false, false), results);
+  }
+
+  @Test
+  void requiredDeliveryReplacesAManualRequestAndQueuedBridgeDelivery() throws Exception {
+    publish();
+    service.send(player);
+    ResourcePackRequest manual = request();
+    service.sendRequired(player, results::add);
+    verify(bridges.constructed().getFirst()).quit(playerId);
+    ResourcePackRequest required = request();
+    complete(manual);
+    timeouts.getFirst().run();
+    assertEquals(List.of(), results, "The manual request's answers and deadline are stale");
+    verify(player, never()).sendMessage(Component.text("TFMC resource pack loaded."));
+    complete(required);
+    assertEquals(List.of(true), results);
+  }
+
+  @Test
+  void quitDropsRequiredWorkButAnOlderConnectionsQuitKeepsTheNewerOne() throws Exception {
+    publish();
+    packUrl(PACK_URL);
+    Player older = mock(Player.class);
+    when(older.getUniqueId()).thenReturn(playerId);
+    service.sendRequired(player, results::add);
+    ResourcePackRequest parts = request();
+    service.quit(new PlayerQuitEvent(older, Component.empty()));
+    assertTrue(service.loading(playerId), "An older connection's quit is not this request's");
+    emit(parts, parts.packs().getFirst().id(), ResourcePackStatus.FAILED_DOWNLOAD);
+    ResourcePackRequest standard = request();
+    service.quit(new PlayerQuitEvent(older, Component.empty()));
+    service.quit(new PlayerQuitEvent(player, Component.empty()));
+    assertFalse(service.loading(playerId));
+    emit(standard, standard.packs().getFirst().id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
+    timeouts.forEach(Runnable::run);
+    assertEquals(List.of(), results, "A quit player's attempt never completes");
+  }
+
+  @Test
+  void theGatePredicateIsConsultedForOwnership() throws Exception {
+    start();
+    assertFalse(service.gated(playerId));
+    service.gate(playerId::equals);
+    assertTrue(service.gated(playerId));
+    assertFalse(service.gated(UUID.randomUUID()));
+  }
+
   private void start() throws IOException {
     service =
         new MultipartPackService(

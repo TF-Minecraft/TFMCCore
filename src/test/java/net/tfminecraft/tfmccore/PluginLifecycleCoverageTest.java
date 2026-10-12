@@ -42,6 +42,7 @@ import net.tfminecraft.tfmccore.manager.DropManager;
 import net.tfminecraft.tfmccore.manager.StationManager;
 import net.tfminecraft.tfmccore.resourcepack.MultipartPackService;
 import net.tfminecraft.tfmccore.resourcepack.PackTextureGuard;
+import net.tfminecraft.tfmccore.resourcepack.RequiredPackGate;
 import net.tfminecraft.tfmccore.resourcepack.ResourcePackListener;
 import net.tfminecraft.tfmccore.stats.StatCategory;
 import net.tfminecraft.tfmccore.stats.StatCategoryRegistry;
@@ -422,6 +423,71 @@ class PluginLifecycleCoverageTest {
         if (scenario.equals("unavailable"))
           verify(rig.logger).warning("SQLite unavailable; stats disabled");
         else rig.sqlite.verifyNoInteractions();
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"off", "absent", "standard", "multipart"})
+  void requiredPackGateIsOptInAndOwnsManualSendsWhileLoading(String scenario) throws Exception {
+    try (Rig rig = new Rig()) {
+      Plugin ia = mock(Plugin.class);
+      Path iaDirectory = rig.folder.getParent().resolve("ItemsAdder");
+      Files.createDirectories(iaDirectory);
+      when(ia.getDataFolder()).thenReturn(iaDirectory.toFile());
+      when(ia.getDescription())
+          .thenReturn(new PluginDescriptionFile("ItemsAdder", "4.0.18", "test.ItemsAdder"));
+      when(rig.manager.getPlugin("ItemsAdder")).thenReturn(ia);
+      when(rig.manager.isPluginEnabled("ItemsAdder")).thenReturn(!scenario.equals("absent"));
+      Files.writeString(
+          rig.folder.resolve("config.yml"),
+          "resource-pack:\n  require-on-join: "
+              + !scenario.equals("off")
+              + "\n  multipart:\n    enabled: "
+              + scenario.equals("multipart")
+              + "\n    public-url: https://packs.example.test/\n");
+      Files.writeString(
+          iaDirectory.resolve("config.yml"),
+          "resource-pack:\n  uuid: "
+              + UUID.randomUUID()
+              + "\n  allow_other_plugins_resourcepacks: true\n  protect-player:\n    lock-player: false\n");
+      try (var gates = mockConstruction(RequiredPackGate.class);
+          var multipart = mockConstruction(MultipartPackService.class)) {
+        rig.plugin.onEnable();
+
+        if (scenario.equals("off")) {
+          assertTrue(gates.constructed().isEmpty());
+          assertFalse(rig.plugin.retryRequiredPack(rig.player));
+          rig.plugin.onDisable();
+          return;
+        }
+        RequiredPackGate gate = gates.constructed().getFirst();
+        verify(rig.manager).registerEvents(gate, rig.plugin);
+        if (scenario.equals("absent")) verify(rig.logger).warning(contains("without ItemsAdder"));
+        if (scenario.equals("multipart")) {
+          MultipartPackService service = multipart.constructed().getFirst();
+          @SuppressWarnings("unchecked")
+          ArgumentCaptor<java.util.function.Predicate<UUID>> owned =
+              ArgumentCaptor.forClass(java.util.function.Predicate.class);
+          verify(service).gate(owned.capture());
+          when(gate.loading(rig.player.getUniqueId())).thenReturn(true);
+          assertTrue(owned.getValue().test(rig.player.getUniqueId()));
+        } else assertTrue(multipart.constructed().isEmpty());
+
+        when(gate.loading(rig.player.getUniqueId())).thenReturn(true);
+        rig.plugin.sendResourcePack(rig.player);
+        verify(rig.player).sendMessage("Your resource pack is already loading.");
+        rig.itemsAdder.verifyNoInteractions();
+        when(gate.loading(rig.player.getUniqueId())).thenReturn(false);
+        rig.plugin.sendResourcePack(rig.player);
+        if (scenario.equals("multipart")) verify(multipart.constructed().getFirst()).send(rig.player);
+        else if (scenario.equals("standard"))
+          rig.itemsAdder.verify(() -> ItemsAdder.applyResourcepack(rig.player));
+
+        when(gate.retry(rig.player)).thenReturn(true);
+        assertTrue(rig.plugin.retryRequiredPack(rig.player));
+        rig.plugin.onDisable();
+        verify(gate).close();
       }
     }
   }
