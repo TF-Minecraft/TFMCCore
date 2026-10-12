@@ -51,7 +51,15 @@ public final class RequiredPackGate implements Listener, AutoCloseable {
     @EventHandler(priority = EventPriority.LOWEST)
     public void join(PlayerJoinEvent event) {
         // Metadata outlives the connection by UUID; always overwrite it before anything is sent.
-        Attempt attempt = start(event.getPlayer());
+        start(event.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void afterJoin(PlayerJoinEvent event) {
+        Attempt attempt = attempts.get(event.getPlayer().getUniqueId());
+        if (attempt == null || attempt.player != event.getPlayer()) return;
+        // Queue behind room entry/loading dialogs scheduled by earlier join handlers.
+        // Minecraft's pack confirmation must be the last screen sent to the client.
         plugin.getServer().getScheduler().runTask(plugin, () -> deliver(attempt));
     }
 

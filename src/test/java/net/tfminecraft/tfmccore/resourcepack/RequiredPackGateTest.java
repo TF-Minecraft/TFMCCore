@@ -67,6 +67,7 @@ class RequiredPackGateTest {
 
   private void join(Player target) {
     gate.join(new PlayerJoinEvent(target, Component.empty()));
+    gate.afterJoin(new PlayerJoinEvent(target, Component.empty()));
   }
 
   private void quit(Player target) {
@@ -79,6 +80,24 @@ class RequiredPackGateTest {
     verify(target, atLeast(0)).setMetadata(eq(RequiredPackGate.METADATA), values.capture());
     values.getAllValues().forEach(value -> assertSame(plugin, value.getOwningPlugin()));
     return values.getAllValues().stream().map(MetadataValue::asString).toList();
+  }
+
+  @Test
+  void deliveryQueuesAfterEarlierJoinHandlersAndIgnoresMissingOrStaleConnections() throws Exception {
+    PlayerJoinEvent event = new PlayerJoinEvent(player, Component.empty());
+    gate.afterJoin(event); assertTrue(tasks.isEmpty());
+    gate.join(event); assertTrue(tasks.isEmpty());
+    assertEquals(List.of("loading"), states(player));
+    gate.afterJoin(new PlayerJoinEvent(player(), Component.empty())); assertTrue(tasks.isEmpty());
+    List<String> order = new ArrayList<>();
+    tasks.add(() -> order.add("room and loading dialog"));
+    delivery = (target, done) -> order.add("required pack prompt");
+    gate.afterJoin(event);
+    while (!tasks.isEmpty()) tasks.removeFirst().run();
+    assertEquals(List.of("room and loading dialog", "required pack prompt"), order);
+    assertEquals(org.bukkit.event.EventPriority.MONITOR,
+        RequiredPackGate.class.getMethod("afterJoin", PlayerJoinEvent.class)
+            .getAnnotation(org.bukkit.event.EventHandler.class).priority());
   }
 
   @Test
@@ -229,12 +248,14 @@ class RequiredPackGateTest {
     MultipartPackService multipart = mock(MultipartPackService.class);
     RequiredPackGate viaMultipart = RequiredPackGate.create(plugin, multipart, Path.of("ia"));
     viaMultipart.join(new PlayerJoinEvent(player, Component.empty()));
+    viaMultipart.afterJoin(new PlayerJoinEvent(player, Component.empty()));
     tasks.removeFirst().run();
     verify(multipart).sendRequired(eq(player), any());
 
     RequiredPackGate unavailable = RequiredPackGate.create(plugin, null, null);
     verify(logger).warning(contains("without ItemsAdder"));
     unavailable.join(new PlayerJoinEvent(player, Component.empty()));
+    unavailable.afterJoin(new PlayerJoinEvent(player, Component.empty()));
     tasks.removeFirst().run();
     assertFalse(unavailable.loading(playerId));
     ArgumentCaptor<MetadataValue> values = ArgumentCaptor.forClass(MetadataValue.class);
@@ -267,6 +288,7 @@ class RequiredPackGateTest {
       RequiredPackGate standard = RequiredPackGate.create(plugin, null, ia);
       for (int connection = 0; connection < 2; connection++) {
         standard.join(new PlayerJoinEvent(player, Component.empty()));
+        standard.afterJoin(new PlayerJoinEvent(player, Component.empty()));
         tasks.removeFirst().run();
         if (connection == 0) standard.quit(new PlayerQuitEvent(player, Component.empty()));
         else standard.close();
