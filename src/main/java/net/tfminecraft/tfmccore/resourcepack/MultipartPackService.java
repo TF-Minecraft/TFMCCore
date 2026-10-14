@@ -34,6 +34,8 @@ public final class MultipartPackService implements Listener, AutoCloseable {
     private final Map<UUID, Request> requests = new HashMap<>();
     private java.util.function.Predicate<UUID> gated = player -> false;
     private final Map<UUID, Long> cooldown = new HashMap<>();
+    // The connection that last received the required parts. Server thread only.
+    private final Map<UUID, Player> requiredSent = new HashMap<>();
     private volatile PackPublisher.Bundle current;
     private volatile boolean closed;
     private final java.util.concurrent.atomic.AtomicLong buildEpoch = new java.util.concurrent.atomic.AtomicLong();
@@ -124,12 +126,13 @@ public final class MultipartPackService implements Listener, AutoCloseable {
         cooldown.put(player.getUniqueId(), now);
         PackPublisher.Bundle bundle = current;
         if (bundle == null) { fallback(player); return; }
-        send(player, bundle, false, null, false, () -> {}, () -> {}, () -> fallback(player));
+        send(player, bundle, false, null, Ids.MANUAL, () -> {}, () -> {}, () -> fallback(player));
     }
 
     /**
-     * Required delivery for the join gate: the three parts under fresh IDs, then once the
-     * standard pack if they fail or time out. Completes once on the server thread with
+     * Required delivery for the join gate: the three parts, then once the standard pack if
+     * they fail or time out. A connection's first request uses stable IDs so the client can
+     * reuse its cached download; retries on that connection get fresh IDs. Completes once on the server thread with
      * true only after every pack loaded; a decline or discard completes false.
      */
     public void sendRequired(Player player, java.util.function.Consumer<Boolean> completion) {
@@ -142,7 +145,8 @@ public final class MultipartPackService implements Listener, AutoCloseable {
         standard.cancel(player.getUniqueId());
         PackPublisher.Bundle bundle = current;
         if (bundle == null) { standard.send(player, once); return; }
-        send(player, bundle, true, StandardPackFallback.PROMPT, true,
+        boolean retry = requiredSent.put(player.getUniqueId(), player) == player;
+        send(player, bundle, true, StandardPackFallback.PROMPT, retry ? Ids.FRESH : Ids.REQUIRED,
                 () -> once.accept(true), () -> once.accept(false), () -> standard.send(player, once));
     }
 
@@ -158,18 +162,24 @@ public final class MultipartPackService implements Listener, AutoCloseable {
         PackPublisher.Bundle bundle = current;
         if (closed || !player.isOnline() || loading(player.getUniqueId())
                 || bundle == null || !bundle.sourceHash().equals(sourceHash)) return false;
-        send(player, bundle, required, prompt, false, () -> {}, () -> {}, fallback);
+        send(player, bundle, required, prompt, Ids.MANUAL, () -> {}, () -> {}, fallback);
         return true;
     }
 
+    // Minecraft caches each download under its pack ID, so stable IDs skip unchanged parts.
     // Fresh IDs keep a client's late answer for an older request off a newer one.
-    private void send(Player player, PackPublisher.Bundle bundle, boolean required, Component prompt, boolean fresh,
+    private enum Ids { MANUAL, REQUIRED, FRESH }
+
+    private void send(Player player, PackPublisher.Bundle bundle, boolean required, Component prompt, Ids ids,
             Runnable loaded, Runnable declined, Runnable fallback) {
         List<ResourcePackInfo> packs = new ArrayList<>();
         for (String part : PackPartitioner.PARTS) {
             String hash = bundle.hashes().get(part);
-            UUID id = fresh ? UUID.randomUUID()
-                    : UUID.nameUUIDFromBytes(("tfmc:" + part + ":" + hash).getBytes(StandardCharsets.UTF_8));
+            UUID id = switch (ids) {
+                case MANUAL -> UUID.nameUUIDFromBytes(("tfmc:" + part + ":" + hash).getBytes(StandardCharsets.UTF_8));
+                case REQUIRED -> UUID.nameUUIDFromBytes(("tfmc:required:" + part + ":" + hash).getBytes(StandardCharsets.UTF_8));
+                case FRESH -> UUID.randomUUID();
+            };
             packs.add(ResourcePackInfo.resourcePackInfo(id, publicUrl.resolve(bundle.sourceHash() + "/" + part + ".zip"), hash));
         }
         PackLoadTracker tracker = new PackLoadTracker(new HashSet<>(packs.stream().map(ResourcePackInfo::id).toList()));
@@ -233,6 +243,7 @@ public final class MultipartPackService implements Listener, AutoCloseable {
         Request request = requests.get(id);
         if (request != null && request.player() == player) requests.remove(id);
         cooldown.remove(id);
+        requiredSent.remove(id, player);
         standard.quit(player);
     }
 
@@ -242,6 +253,6 @@ public final class MultipartPackService implements Listener, AutoCloseable {
         standard.close();
         worker.shutdownNow(); http.close();
         HandlerList.unregisterAll(this);
-        requests.clear(); cooldown.clear();
+        requests.clear(); cooldown.clear(); requiredSent.clear();
     }
 }
