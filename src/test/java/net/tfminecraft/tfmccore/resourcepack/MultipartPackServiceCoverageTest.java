@@ -564,7 +564,7 @@ class MultipartPackServiceCoverageTest {
   }
 
   @Test
-  void requiredDeliveryCompletesTrueOnceOnlyAfterAllThreeFreshPartsLoad() throws Exception {
+  void requiredDeliveryCompletesTrueOnceOnlyAfterAllThreePartsLoad() throws Exception {
     publish();
     service.sendRequired(player, results::add);
     ResourcePackRequest first = request();
@@ -578,6 +578,11 @@ class MultipartPackServiceCoverageTest {
           UUID.nameUUIDFromBytes(("tfmc:" + part + ":" + pack.hash()).getBytes(StandardCharsets.UTF_8)),
           pack.id(),
           "Required parts never reuse the stable manual IDs");
+      assertEquals(
+          UUID.nameUUIDFromBytes(
+              ("tfmc:required:" + part + ":" + pack.hash()).getBytes(StandardCharsets.UTF_8)),
+          pack.id(),
+          "A connection's first request reuses the client's cached download");
     }
     emit(first, first.packs().get(0).id(), ResourcePackStatus.ACCEPTED);
     emit(first, first.packs().get(0).id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
@@ -829,6 +834,37 @@ class MultipartPackServiceCoverageTest {
     emit(standard, standard.packs().getFirst().id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
     timeouts.forEach(Runnable::run);
     assertEquals(List.of(), results, "A quit player's attempt never completes");
+  }
+
+  @Test
+  void eachNewConnectionReusesTheStableIdsSoTheClientCacheHits() throws Exception {
+    publish();
+    packUrl(PACK_URL);
+    service.sendRequired(player, results::add);
+    ResourcePackRequest parts = request();
+    emit(parts, parts.packs().getFirst().id(), ResourcePackStatus.FAILED_DOWNLOAD);
+    ResourcePackRequest standard = request();
+    assertEquals(
+        UUID.nameUUIDFromBytes(("tfmc:standard:" + sourceHash).getBytes(StandardCharsets.UTF_8)),
+        standard.packs().getFirst().id());
+    service.quit(new PlayerQuitEvent(player, Component.empty()));
+
+    Player next = mock(Player.class);
+    when(next.getUniqueId()).thenReturn(playerId);
+    when(next.isOnline()).thenReturn(true);
+    when(next.getName()).thenReturn("Ada");
+    service.sendRequired(next, results::add);
+    ArgumentCaptor<ResourcePackRequest> captured =
+        ArgumentCaptor.forClass(ResourcePackRequest.class);
+    verify(next).sendResourcePacks(captured.capture());
+    ResourcePackRequest again = captured.getValue();
+    assertEquals(
+        parts.packs().stream().map(ResourcePackInfo::id).toList(),
+        again.packs().stream().map(ResourcePackInfo::id).toList());
+    again.callback().packEventReceived(again.packs().getFirst().id(), ResourcePackStatus.FAILED_DOWNLOAD, next);
+    callbacks.removeFirst().run();
+    verify(next, times(2)).sendResourcePacks(captured.capture());
+    assertEquals(standard.packs().getFirst().id(), captured.getValue().packs().getFirst().id());
   }
 
   @Test

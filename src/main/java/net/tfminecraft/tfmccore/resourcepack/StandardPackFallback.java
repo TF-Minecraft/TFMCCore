@@ -3,6 +3,7 @@ package net.tfminecraft.tfmccore.resourcepack;
 import dev.lone.itemsadder.api.ItemsAdder;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -16,7 +17,10 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
-/** Required single-pack delivery of ItemsAdder's self-hosted pack under a fresh request ID. */
+/**
+ * Required single-pack delivery of ItemsAdder's self-hosted pack. A connection's first request
+ * uses a stable ID so the client can reuse its cached download; retries get fresh IDs.
+ */
 final class StandardPackFallback implements AutoCloseable {
     static final Component PROMPT = Component.text("TFMC needs its resource pack to play.");
     static final long TIMEOUT_TICKS = 20L * 180;
@@ -29,6 +33,7 @@ final class StandardPackFallback implements AutoCloseable {
     private final Path source, cache;
     // Server thread only.
     private final Map<UUID, Pending> pending = new HashMap<>();
+    private final Map<UUID, Player> sent = new HashMap<>();
     private Stamp stamp;
     private String hash;
     private volatile boolean closed;
@@ -47,7 +52,11 @@ final class StandardPackFallback implements AutoCloseable {
         try {
             String url = ItemsAdder.getPackUrl(true);
             if (url == null || url.isBlank()) throw new IllegalStateException("ItemsAdder has no pack URL");
-            ResourcePackInfo info = ResourcePackInfo.resourcePackInfo(UUID.randomUUID(), URI.create(url), hash());
+            URI uri = URI.create(url);
+            String hash = hash();
+            UUID packId = sent.put(player.getUniqueId(), player) == player ? UUID.randomUUID()
+                    : UUID.nameUUIDFromBytes(("tfmc:standard:" + hash).getBytes(StandardCharsets.UTF_8));
+            ResourcePackInfo info = ResourcePackInfo.resourcePackInfo(packId, uri, hash);
             request = new Pending(player, info.id(), done);
             pending.put(player.getUniqueId(), request);
             player.sendResourcePacks(ResourcePackRequest.resourcePackRequest().packs(info).replace(true).required(true)
@@ -110,12 +119,14 @@ final class StandardPackFallback implements AutoCloseable {
 
     /** Quit cleanup that never touches a newer connection under the same UUID. */
     void quit(Player player) {
+        sent.remove(player.getUniqueId(), player);
         Pending request = pending.get(player.getUniqueId());
         if (request != null && request.player == player) finish(request);
     }
 
     @Override public void close() {
         closed = true;
+        sent.clear();
         List.copyOf(pending.values()).forEach(this::finish);
     }
 }
