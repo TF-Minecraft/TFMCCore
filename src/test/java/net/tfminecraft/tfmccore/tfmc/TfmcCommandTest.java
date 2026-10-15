@@ -95,17 +95,35 @@ class TfmcCommandTest {
     }
 
     @Test
-    void helperTrackMembersSeeTheStepTheyCanTake() {
+    void trackMembersSeeTheStepTheyCanTake() {
         TestPlayer offDuty = player("Helper", "helper.promote");
-        assertTrue(visible(offDuty).contains("helper"));
-        assertFalse(visible(offDuty).contains("helper+"));
-        assertEquals(List.of("promote"), visible(offDuty, "helper"));
+        assertTrue(visible(offDuty).contains("promote"));
+        assertFalse(visible(offDuty).contains("demote"));
 
         TestPlayer onDuty = player("Helper", "helper.promote", "helper.demote", "tfmc.helper");
-        assertEquals(List.of("promote", "demote"), visible(onDuty, "helper"));
-        assertTrue(visible(onDuty).contains("ban"));
+        assertTrue(visible(onDuty).containsAll(List.of("promote", "demote", "ban")));
 
-        assertEquals(List.of("demote"), visible(player("Senior", "helper+.demote"), "helper+"));
+        assertEquals(List.of("demote"), visible(player("Senior", "helper+.demote")).stream()
+                .filter(name -> name.equals("promote") || name.equals("demote")).toList());
+    }
+
+    @Test
+    void stepsFollowTheHighestTrackThePlayerIsOn() throws Exception {
+        TestPlayer helper = player("Helper", "helper.promote");
+        run(helper, "tfmc promote");
+        TestPlayer senior = player("Senior", "helper.promote", "helper+.demote");
+        run(senior, "tfmc demote");
+        TestPlayer staff = player("Staff", "helper+.promote", "helper+.demote", "staff.promote", "staff.demote");
+        run(staff, "tfmc demote");
+        run(staff, "tfmc promote");
+        assertEquals(List.of("Helper helper promote", "Senior helper+ demote", "Staff staff demote", "Staff staff promote"),
+                trackSteps);
+
+        // The highest track decides, even when a lower track would allow the step
+        TestPlayer newStaff = player("NewStaff", "helper+.demote", "staff.promote");
+        assertFalse(visible(newStaff).contains("demote"));
+        assertThrows(CommandSyntaxException.class, () -> run(newStaff, "tfmc demote"));
+        assertEquals(4, trackSteps.size());
     }
 
     @Test
@@ -117,8 +135,10 @@ class TfmcCommandTest {
 
         assertFalse(visible(player("Helper", "tfmc.helper")).contains("ban"));
         assertTrue(visible(player("Mod", "tfmc.moderator")).contains("ban"));
-        assertEquals(List.of("demote"), visible(player("Helper", "helper.promote", "helper.demote"), "helper"));
-        assertFalse(visible(player("Anyone")).contains("helper"));
+        TestPlayer helper = player("Helper", "helper.promote", "helper.demote");
+        assertFalse(visible(helper).contains("promote"));
+        assertTrue(visible(helper).contains("demote"));
+        assertFalse(visible(player("Anyone", "helper.promote")).contains("promote"));
     }
 
     @Test
@@ -126,19 +146,19 @@ class TfmcCommandTest {
         TestPlayer helper = player("Helper", "helper.demote");
 
         nextStep = new TfmcActions.TrackStep(true, Optional.empty());
-        run(helper, "tfmc helper demote");
+        run(helper, "tfmc demote");
         assertEquals(List.of("You are no longer on the helper track."), helper.messages);
 
         nextStep = TfmcActions.TrackStep.unchanged();
-        run(helper, "tfmc helper demote");
-        assertEquals(List.of("Your helper status could not be changed."), helper.messages);
+        run(helper, "tfmc demote");
+        assertEquals(List.of("Your status could not be changed."), helper.messages);
     }
 
     @Test
     void luckPermsResultsAreReportedOnTheMainThread() throws Exception {
         TestPlayer helper = player("Helper", "helper.demote");
         helper.messages.clear();
-        dispatcher.execute("tfmc helper demote", source(helper.player));
+        dispatcher.execute("tfmc demote", source(helper.player));
 
         assertTrue(helper.messages.isEmpty());
         runMainThread();
@@ -149,11 +169,21 @@ class TfmcCommandTest {
     void trackStepsGoThroughLuckPerms() throws Exception {
         TestPlayer helper = player("Helper", "helper.demote");
 
-        run(helper, "tfmc helper demote");
+        run(helper, "tfmc demote");
 
         assertEquals(List.of("Helper helper demote"), trackSteps);
         assertEquals(List.of("You are now helper_player."), helper.messages);
-        assertThrows(CommandSyntaxException.class, () -> run(helper, "tfmc helper promote"));
+        assertThrows(CommandSyntaxException.class, () -> run(helper, "tfmc promote"));
+    }
+
+    @Test
+    void consoleCannotStepATrack() throws Exception {
+        ConsoleCommandSender console = mock(ConsoleCommandSender.class);
+        when(console.hasPermission(anyString())).thenReturn(true);
+        List<String> messages = capture(console);
+        dispatcher.execute("tfmc demote", source(console));
+        assertEquals(List.of("Only players can use this command."), messages);
+        assertTrue(trackSteps.isEmpty());
     }
 
     @Test
@@ -445,10 +475,10 @@ class TfmcCommandTest {
         trackFailure = new IllegalStateException("Track storage unavailable");
         for (String step : List.of("promote", "demote")) {
             helper.messages.clear();
-            dispatcher.execute("tfmc helper " + step, source(helper.player));
+            dispatcher.execute("tfmc " + step, source(helper.player));
             assertTrue(helper.messages.isEmpty());
             runMainThread();
-            assertEquals(List.of("Your helper status could not be changed."), helper.messages);
+            assertEquals(List.of("Your status could not be changed."), helper.messages);
         }
     }
 
@@ -475,10 +505,10 @@ class TfmcCommandTest {
         run(helper, "tfmc poster missing");
         assertEquals(List.of("There is no poster called missing."), helper.messages);
         assertTrue(playerCommands.isEmpty());
-        assertTrue(visible(helper).contains("helper"));
+        assertTrue(visible(helper).contains("promote"));
         config.loadFromString("helper-tracks: {}");
-        assertFalse(visible(helper).contains("helper"));
-        assertThrows(CommandSyntaxException.class, () -> run(helper, "tfmc helper promote"));
+        assertFalse(visible(helper).contains("promote"));
+        assertThrows(CommandSyntaxException.class, () -> run(helper, "tfmc promote"));
         assertTrue(trackSteps.isEmpty());
     }
 
