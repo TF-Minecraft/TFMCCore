@@ -194,6 +194,21 @@ class FontGridMergerTest {
         assertEquals(JsonParser.parseString(tiles.get(16)), providers.get(1));
     }
 
+    @Test void stopsRewritingFontsPastTheOutputBudget() throws Exception {
+        Map<String, byte[]> files = new TreeMap<>();
+        files.put("assets/minecraft/textures/font/a.png", png(image(1, 1, 1)));
+        String filler = "x".repeat(1024 * 1024);
+        for (int i = 0; i < 17; i++) {
+            String font = "{\"metadata\":\"" + filler + "\",\"providers\":[" + bitmap("bitmap", "minecraft:font/a.png", "\\ue000", ",\"ascent\":7")
+                    + "," + bitmap("bitmap", "minecraft:font/a.png", "\\ue001", ",\"ascent\":7") + "]}";
+            files.put(String.format("assets/f%02d/font/default.json", i), font.getBytes(StandardCharsets.UTF_8));
+        }
+        Map<String, byte[]> merged = merge(files);
+        assertEquals(15, merged.keySet().stream().filter(name -> name.endsWith(".json")).count(), "16 MiB holds 15 of the 1 MiB fonts");
+        assertFalse(merged.containsKey("assets/f15/font/default.json"));
+        assertFalse(merged.containsKey("assets/f16/font/default.json"));
+    }
+
     @Test void decodesWhatTheClientDecodesAndRejectsTheRest() throws Exception {
         BufferedImage palette = FontGridMerger.decode(manual(1, 1, 8, 3, zlib(new byte[] {0, 0}),
                 chunk("PLTE", new byte[] {(byte) 255, 0, 0}), chunk("tRNS", new byte[] {(byte) 128}), chunk("tEXt", new byte[] {'a', 0, 'b'})), 1);
@@ -224,7 +239,14 @@ class FontGridMergerTest {
         assertNotNull(FontGridMerger.decode(manual(1, 1, 8, 6, rgba), 1), "the unmodified 1x1 image decodes");
         assertNotNull(FontGridMerger.decode(manual(2, 2, 8, 6, zlib(new byte[18])), 4));
         assertNull(FontGridMerger.decode(manual(2, 2, 8, 6, zlib(new byte[18])), 3), "over the pixel budget");
+        byte[] indexedHeader = chunk("IHDR", ByteBuffer.allocate(13).putInt(1).putInt(1).put((byte) 8).put((byte) 3).array());
         for (byte[] rejected : List.of(
+                manual(1, 1, 8, 2, zlib(new byte[] {0, 1, 2, 3}), plte),
+                manual(1, 1, 8, 6, rgba, chunk("tRNS", new byte[0])),
+                join.apply(new byte[][] {indexedHeader, chunk("IDAT", new byte[0]), plte, chunk("IDAT", paletteData), end}),
+                join.apply(new byte[][] {header, chunk("IDAT", Arrays.copyOf(rgba, 3)), chunk("tEXt", new byte[] {'a', 0}),
+                        chunk("IDAT", Arrays.copyOfRange(rgba, 3, rgba.length)), end}),
+                manual(1, 1, 8, 6, Arrays.copyOf(rgba, rgba.length - 4)),
                 join.apply(new byte[][] {header, chunk("ABCD", new byte[0]), data, end}),
                 join.apply(new byte[][] {header, chunk("@BCD", new byte[0]), data, end}),
                 join.apply(new byte[][] {header, data}),

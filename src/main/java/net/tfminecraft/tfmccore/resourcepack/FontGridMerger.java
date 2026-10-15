@@ -22,6 +22,8 @@ final class FontGridMerger {
     private static final int MAX_FONT_BYTES = 4 * 1024 * 1024, MAX_TEXTURE_BYTES = 8 * 1024 * 1024;
     // Glyph images stay in memory until their sheet is written: cap each and their total.
     private static final long MAX_GLYPH_PIXELS = 1024 * 1024, MAX_HELD_PIXELS = 16L * 1024 * 1024;
+    // Rewritten fonts and sheets are held until the parts are written; fonts past this stay as they are.
+    private static final long MAX_WRITTEN_BYTES = 16L * 1024 * 1024;
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private record Glyph(int codePoint, BufferedImage image, JsonElement provider) {}
     private FontGridMerger() {}
@@ -30,6 +32,7 @@ final class FontGridMerger {
     static Map<String, byte[]> merge(ZipFile zip, Set<String> overlays) throws IOException {
         Map<String, byte[]> files = new TreeMap<>();
         long[] held = {0};
+        long written = 0;
         List<? extends ZipEntry> fonts = zip.stream().filter(entry -> entry.getName().matches("assets/[^/]+/font/.+\\.json")).toList();
         for (ZipEntry entry : fonts) {
             String namespace = entry.getName().split("/")[1];
@@ -41,7 +44,11 @@ final class FontGridMerger {
                 JsonArray providers = merge(zip, overlays, namespace, font.getAsJsonArray("providers"), sheets, held);
                 if (providers == null) continue;
                 font.add("providers", providers);
-                files.put(entry.getName(), GSON.toJson(font).getBytes(StandardCharsets.UTF_8));
+                byte[] rewritten = GSON.toJson(font).getBytes(StandardCharsets.UTF_8);
+                long size = rewritten.length + sheets.values().stream().mapToLong(sheet -> sheet.length).sum();
+                if (written + size > MAX_WRITTEN_BYTES) continue;
+                written += size;
+                files.put(entry.getName(), rewritten);
                 files.putAll(sheets);
             } catch (RuntimeException malformed) {
                 // The client rejects the same file; leave it exactly as ItemsAdder wrote it.
@@ -170,7 +177,7 @@ final class FontGridMerger {
         if (png.length < 33 || ByteBuffer.wrap(png).getLong() != 0x89504E470D0A1A0AL) return null;
         ByteArrayOutputStream idat = new ByteArrayOutputStream();
         byte[] header = null, palette = null, transparency = null;
-        boolean ended = false;
+        boolean ended = false, dataDone = false;
         ByteBuffer chunks = ByteBuffer.wrap(png);
         for (int at = 8; at + 12 <= png.length;) {
             int length = chunks.getInt(at);
@@ -178,16 +185,24 @@ final class FontGridMerger {
             String type = new String(png, at + 4, 4, StandardCharsets.ISO_8859_1);
             byte[] body = Arrays.copyOfRange(png, at + 8, at + 8 + length);
             if ((header == null) != type.equals("IHDR")) return null; // IHDR first, and only once.
+            // Only the plain layout: palette chunks on palette images before the data, and the data
+            // as one run of non-empty IDAT chunks. Anything else stays unmerged.
             switch (type) {
                 case "IHDR" -> header = body;
-                case "PLTE" -> { if (idat.size() > 0 || palette != null) return null; palette = body; }
+                case "PLTE" -> { if (header[9] != 3 || idat.size() > 0 || palette != null) return null; palette = body; }
                 case "tRNS" -> {
-                    if (idat.size() > 0 || transparency != null || header[9] == 3 && palette == null) return null;
+                    if (header[9] != 3 || palette == null || idat.size() > 0 || transparency != null) return null;
                     transparency = body;
                 }
-                case "IDAT" -> idat.write(body);
+                case "IDAT" -> {
+                    if (length == 0 || dataDone || header[9] == 3 && palette == null) return null;
+                    idat.write(body);
+                }
                 case "IEND" -> ended = true;
-                default -> { if ((png[at + 4] & 0x20) == 0) return null; } // Unknown critical chunk.
+                default -> {
+                    if ((png[at + 4] & 0x20) == 0) return null; // Unknown critical chunk.
+                    dataDone = idat.size() > 0;
+                }
             }
             if (ended) break;
             at += 12 + length;
@@ -197,7 +212,7 @@ final class FontGridMerger {
         int depth = header[8], colour = header[9];
         boolean supported = colour == 3 ? depth <= 8 && palette != null && palette.length > 0 && palette.length % 3 == 0 && palette.length <= 768
                         && (transparency == null || transparency.length <= palette.length / 3)
-                : depth == 8 && (colour == 6 || colour == 2 && transparency == null);
+                : depth == 8 && (colour == 6 || colour == 2);
         boolean standard = header[10] == 0 && header[11] == 0 && (header[12] == 0 || header[12] == 1);
         if (!supported || !standard || width < 1 || height < 1 || width > MAX_SHEET || height > MAX_SHEET
                 || (long) width * height > maxPixels) return null;
@@ -216,7 +231,9 @@ final class FontGridMerger {
             while (!inflater.finished() && !inflater.needsInput() && raw.size() <= limit) {
                 raw.write(buffer, 0, inflater.inflate(buffer));
             }
-            finished = inflater.finished(); // stb rejects a stream that stops before its final block.
+            // stb rejects a stream that stops before its final block, and reads ahead into the
+            // Adler-32 trailer: require the four bytes without checking them (ItemsAdder scrambles them).
+            finished = inflater.finished() && inflater.getRemaining() >= 4;
         } catch (DataFormatException corrupt) {
             return null;
         } finally {
