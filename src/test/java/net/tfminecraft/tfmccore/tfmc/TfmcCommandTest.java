@@ -17,7 +17,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -55,6 +57,8 @@ class TfmcCommandTest {
     private final List<Long> scheduledTicks = new ArrayList<>();
     private final List<Runnable> scheduled = new ArrayList<>();
     private int cancelled;
+    // Player name to the highest track holding one of their groups
+    private final Map<String, String> highestTracks = new HashMap<>(Map.of("Helper", "helper", "Senior", "helper+"));
     private TfmcActions.TrackStep nextStep;
     private RuntimeException permissionFailure;
     private RuntimeException trackFailure;
@@ -103,27 +107,31 @@ class TfmcCommandTest {
         TestPlayer onDuty = player("Helper", "helper.promote", "helper.demote", "tfmc.helper");
         assertTrue(visible(onDuty).containsAll(List.of("promote", "demote", "ban")));
 
-        assertEquals(List.of("demote"), visible(player("Senior", "helper+.demote")).stream()
-                .filter(name -> name.equals("promote") || name.equals("demote")).toList());
+        TestPlayer senior = player("Senior", "helper+.demote");
+        assertTrue(visible(senior).contains("demote"));
+        assertFalse(visible(senior).contains("promote"));
     }
 
     @Test
-    void stepsFollowTheHighestTrackThePlayerIsOn() throws Exception {
-        TestPlayer helper = player("Helper", "helper.promote");
-        run(helper, "tfmc promote");
-        TestPlayer senior = player("Senior", "helper.promote", "helper+.demote");
-        run(senior, "tfmc demote");
-        TestPlayer staff = player("Staff", "helper+.promote", "helper+.demote", "staff.promote", "staff.demote");
-        run(staff, "tfmc demote");
-        run(staff, "tfmc promote");
-        assertEquals(List.of("Helper helper promote", "Senior helper+ demote", "Staff staff demote", "Staff staff promote"),
-                trackSteps);
+    void stepsFollowTheHighestTrackThePlayerIsIn() throws Exception {
+        // Active helper+ and staff groups hold *, which matches every track's permissions
+        highestTracks.put("Wildcard", "helper+");
+        run(everything("Wildcard"), "tfmc demote");
+        highestTracks.put("Staff", "staff");
+        run(everything("Staff"), "tfmc demote");
+        run(player("Helper", "helper.promote"), "tfmc promote");
+        assertEquals(List.of("Wildcard helper+ demote", "Staff staff demote", "Helper helper promote"), trackSteps);
 
         // The highest track decides, even when a lower track would allow the step
+        highestTracks.put("NewStaff", "staff");
         TestPlayer newStaff = player("NewStaff", "helper+.demote", "staff.promote");
         assertFalse(visible(newStaff).contains("demote"));
         assertThrows(CommandSyntaxException.class, () -> run(newStaff, "tfmc demote"));
-        assertEquals(4, trackSteps.size());
+
+        TestPlayer offTrack = everything("Admin");
+        assertFalse(visible(offTrack).contains("promote"));
+        assertThrows(CommandSyntaxException.class, () -> run(offTrack, "tfmc promote"));
+        assertEquals(3, trackSteps.size());
     }
 
     @Test
@@ -138,7 +146,7 @@ class TfmcCommandTest {
         TestPlayer helper = player("Helper", "helper.promote", "helper.demote");
         assertFalse(visible(helper).contains("promote"));
         assertTrue(visible(helper).contains("demote"));
-        assertFalse(visible(player("Anyone", "helper.promote")).contains("promote"));
+        assertFalse(visible(player("Anyone", "helper.demote")).contains("demote"));
     }
 
     @Test
@@ -180,9 +188,7 @@ class TfmcCommandTest {
     void consoleCannotStepATrack() throws Exception {
         ConsoleCommandSender console = mock(ConsoleCommandSender.class);
         when(console.hasPermission(anyString())).thenReturn(true);
-        List<String> messages = capture(console);
-        dispatcher.execute("tfmc demote", source(console));
-        assertEquals(List.of("Only players can use this command."), messages);
+        assertThrows(CommandSyntaxException.class, () -> dispatcher.execute("tfmc demote", source(console)));
         assertTrue(trackSteps.isEmpty());
     }
 
@@ -558,6 +564,12 @@ class TfmcCommandTest {
         return new TestPlayer(player, capture(player));
     }
 
+    private static TestPlayer everything(String name) {
+        TestPlayer player = player(name);
+        when(player.player.hasPermission(anyString())).thenReturn(true);
+        return player;
+    }
+
     private static List<String> capture(CommandSender sender) {
         List<String> messages = new ArrayList<>();
         doAnswer(call -> messages.add(plain(call.getArgument(0))))
@@ -620,6 +632,11 @@ class TfmcCommandTest {
             scheduledTicks.add(ticks);
             scheduled.add(task);
             return () -> cancelled++;
+        }
+
+        @Override
+        public Optional<String> highestTrack(Player player, List<String> tracks) {
+            return Optional.ofNullable(highestTracks.get(player.getName())).filter(tracks::contains);
         }
 
         @Override

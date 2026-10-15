@@ -399,22 +399,17 @@ public final class TfmcCommand {
 
     /**
      * The track a promote or demote moves the sender along: their highest track, the last in
-     * tfmc.yml whose promote or demote permission they hold, if they may take that step on it.
+     * tfmc.yml holding one of their groups, if they hold that step's permission on it.
      */
     private Optional<String> stepTrack(CommandSender sender, boolean promote) {
-        Map.Entry<String, TfmcConfig.TrackSteps> highest = null;
-        for (Map.Entry<String, TfmcConfig.TrackSteps> track : config.tracks().entrySet()) {
-            TfmcConfig.TrackSteps steps = track.getValue();
-            if (holds(sender, steps.promotePermission()) || holds(sender, steps.demotePermission())) {
-                highest = track;
-            }
-        }
-        if (highest == null) {
+        if (!(sender instanceof Player player)) {
             return Optional.empty();
         }
-        TfmcConfig.TrackSteps steps = highest.getValue();
-        return holds(sender, promote ? steps.promotePermission() : steps.demotePermission())
-                ? Optional.of(highest.getKey()) : Optional.empty();
+        Map<String, TfmcConfig.TrackSteps> tracks = config.tracks();
+        return actions.highestTrack(player, List.copyOf(tracks.keySet())).filter(track -> {
+            TfmcConfig.TrackSteps steps = tracks.get(track);
+            return holds(player, promote ? steps.promotePermission() : steps.demotePermission());
+        });
     }
 
     private Predicate<CommandSourceStack> enabled(String section) {

@@ -149,7 +149,7 @@ ban:
   message: "<green>Tempbanned <red><target></red> for 8 hours."
 
 # /tfmc promote|demote moves the player one step along their highest LuckPerms track: the last
-# one listed here whose promote or demote permission they hold. List tracks lowest first.
+# one listed here that holds one of their global groups. List tracks lowest first.
 helper-tracks:
   helper:
     promote-permission: helper.promote

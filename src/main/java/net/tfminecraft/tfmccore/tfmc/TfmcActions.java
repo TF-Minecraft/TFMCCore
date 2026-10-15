@@ -39,7 +39,13 @@ public interface TfmcActions {
     /** Sets a LuckPerms permission to true or false for the player in this server's context. */
     CompletableFuture<Void> setPermission(Player player, String permission, boolean granted);
 
-    /** Moves the player one step along a LuckPerms track. */
+    /**
+     * The last of {@code tracks} that holds one of the player's own global groups. Group
+     * permissions cannot answer this, because the {@code *} on some groups matches every track.
+     */
+    Optional<String> highestTrack(Player player, List<String> tracks);
+
+    /** Moves the player one step along a LuckPerms track they are already on. */
     CompletableFuture<TrackStep> stepTrack(Player player, String track, boolean promote);
 
     /** Lets the player fly at {@code speed} and returns their previous flight settings. */

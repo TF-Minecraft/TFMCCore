@@ -2,6 +2,7 @@ package net.tfminecraft.tfmccore.tfmc;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,6 +26,7 @@ import net.luckperms.api.context.DefaultContextKeys;
 import net.luckperms.api.context.ImmutableContextSet;
 import net.luckperms.api.model.user.User;
 import net.luckperms.api.node.NodeType;
+import net.luckperms.api.node.types.InheritanceNode;
 import net.luckperms.api.track.Track;
 import net.luckperms.api.track.TrackManager;
 import net.tfminecraft.tfmccore.TFMCCore;
@@ -99,6 +101,23 @@ public final class BukkitTfmcActions implements TfmcActions {
     }
 
     @Override
+    public Optional<String> highestTrack(Player player, List<String> tracks) {
+        LuckPerms api = luckPerms.get();
+        // The cached user is fine for reading; stepTrack reloads it before changing anything
+        User user = api == null ? null : api.getUserManager().getUser(player.getUniqueId());
+        if (user == null) {
+            return Optional.empty();
+        }
+        for (String name : tracks.reversed()) {
+            Track track = api.getTrackManager().getTrack(name);
+            if (track != null && onTrack(user, track)) {
+                return Optional.of(name);
+            }
+        }
+        return Optional.empty();
+    }
+
+    @Override
     public CompletableFuture<TrackStep> stepTrack(Player player, String trackName, boolean promote) {
         LuckPerms api = luckPerms.get();
         if (api == null) {
@@ -112,6 +131,11 @@ public final class BukkitTfmcActions implements TfmcActions {
         // Global context, like "lp user <player> promote|demote <track>"
         ImmutableContextSet global = api.getContextManager().getContextSetFactory().immutableEmpty();
         return withFreshUser(api, player, user -> {
+            // Promoting someone off the track would add them to its first group
+            if (!onTrack(user, track)) {
+                LOGGER.warning(player.getName() + " is not on " + trackName + "; not changing their groups");
+                return CompletableFuture.completedFuture(TrackStep.unchanged());
+            }
             TrackStep step;
             String status;
             if (promote) {
@@ -185,6 +209,14 @@ public final class BukkitTfmcActions implements TfmcActions {
                     finished.complete(null);
                 });
         return result;
+    }
+
+    /** Whether the user's own global groups, the ones track steps act on, include one on the track. */
+    private static boolean onTrack(User user, Track track) {
+        return user.getNodes(NodeType.INHERITANCE).stream()
+                .filter(node -> node.getValue() && node.getContexts().isEmpty())
+                .map(InheritanceNode::getGroupName)
+                .anyMatch(track::containsGroup);
     }
 
     private static CompletableFuture<Void> save(LuckPerms api, User user) {
