@@ -218,7 +218,6 @@ public final class MultipartPackService implements Listener, AutoCloseable {
         if (result == PackLoadTracker.Result.COMPLETE) {
             requests.remove(player.getUniqueId(), request);
             plugin.getLogger().info("All three resource-pack parts loaded for " + player.getName());
-            player.sendMessage(Component.text("TFMC resource pack loaded."));
             loaded.run();
         } else if (result == PackLoadTracker.Result.FAILED) {
             requests.remove(player.getUniqueId(), request);
