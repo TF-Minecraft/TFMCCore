@@ -26,6 +26,10 @@ class CoreTabCompletionCoverageTest {
       when(alice.getName()).thenReturn("Alice");
       when(bob.getName()).thenReturn("Bob");
       bukkit.when(Bukkit::getOnlinePlayers).thenReturn(List.of(alice, bob));
+      assertEquals(List.of(), tab.onTabComplete(sender, command, "tcore", new String[0]));
+      for (String action : List.of("pack", "packretry")) {
+        assertEquals(List.of(), tab.onTabComplete(sender, command, "tcore", new String[] {action, ""}));
+      }
       assertEquals(
           List.of("stats", "pack"), tab.onTabComplete(sender, command, "tcore", new String[] {""}));
       assertEquals(
@@ -49,6 +53,12 @@ class CoreTabCompletionCoverageTest {
               .toList());
       when(sender.hasPermission("tfmccore.reload")).thenReturn(false);
       when(sender.hasPermission("tfmccore.admin")).thenReturn(true);
+      for (String action : List.of("PACK", "PACKRETRY")) {
+        assertEquals(List.of("Alice", "Bob"), tab.onTabComplete(sender, command, "tcore", new String[] {action, ""}));
+        assertEquals(List.of("Alice"), tab.onTabComplete(sender, command, "tcore", new String[] {action, "aL"}));
+        assertEquals(List.of(), tab.onTabComplete(sender, command, "tcore", new String[] {action, "zzz"}));
+        assertEquals(List.of(), tab.onTabComplete(sender, command, "tcore", new String[] {action, "Alice", ""}));
+      }
       assertEquals(
           List.of("stats", "pack", "reload", "stones", "packretry"),
           tab.onTabComplete(sender, command, "tcore", new String[] {""}));

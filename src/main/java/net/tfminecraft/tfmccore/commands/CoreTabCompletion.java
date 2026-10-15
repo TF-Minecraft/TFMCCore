@@ -19,7 +19,7 @@ public final class CoreTabCompletion implements TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command cmd, String label, String[] args) {
-        if (!cmd.getName().equalsIgnoreCase("tcore")) {
+        if (!cmd.getName().equalsIgnoreCase("tcore") || args.length == 0) {
             return List.of();
         }
 
@@ -40,6 +40,16 @@ public final class CoreTabCompletion implements TabCompleter {
 
         if (args.length == 2 && args[0].equalsIgnoreCase("reload") && canReload(sender)) {
             List<String> completions = new ArrayList<>(RELOAD_TARGETS);
+            TabCleaner.cleanTab(completions, args);
+            return completions;
+        }
+
+        if (args.length == 2 && (args[0].equalsIgnoreCase("pack") || args[0].equalsIgnoreCase("packretry"))
+                && sender.hasPermission(ADMIN_PERMISSION)) {
+            List<String> completions = new ArrayList<>();
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                completions.add(player.getName());
+            }
             TabCleaner.cleanTab(completions, args);
             return completions;
         }
