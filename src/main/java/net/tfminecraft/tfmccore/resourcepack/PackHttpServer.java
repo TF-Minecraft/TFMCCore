@@ -8,6 +8,7 @@ import java.util.concurrent.*;
 
 /** Serves only published immutable pack parts, never arbitrary plugin files. */
 public final class PackHttpServer implements AutoCloseable {
+    private static final String PART_PATH = "/[0-9a-f]{40}/(" + String.join("|", PackPartitioner.PARTS) + ")\\.zip";
     private final HttpServer server;
     private final ExecutorService executor;
     private final Path root;
@@ -31,7 +32,7 @@ public final class PackHttpServer implements AutoCloseable {
                 exchange.sendResponseHeaders(405, -1); return;
             }
             String path = exchange.getRequestURI().getRawPath();
-            if (!path.matches("/[0-9a-f]{40}/(core|models|sounds)\\.zip")) {
+            if (!path.matches(PART_PATH)) {
                 exchange.sendResponseHeaders(404, -1); return;
             }
             Path file = root.resolve(path.substring(1));

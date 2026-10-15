@@ -80,11 +80,37 @@ class MultipartPackTest {
         var models = read(out.resolve("models.zip"));
         assertTrue(models.containsKey("old/assets/modelengine/models/creature.json"));
         assertTrue(models.containsKey("new/assets/modelengine/models/creature.json"));
-        assertTrue(read(out.resolve("core.zip")).containsKey("assets/mixed/sounds.json"), "classify all overlays, not just base");
+        var mixed = read(out.resolve("core2.zip"));
+        assertTrue(mixed.containsKey("assets/mixed/sounds.json"), "classify all overlays, not just base");
+        assertTrue(mixed.containsKey("new/assets/mixed/textures/texture.png"), "a namespace stays in one part");
+        assertTrue(read(out.resolve("core.zip")).containsKey("assets/minecraft/atlases/blocks.json"));
+        assertEquals(Set.of("pack.mcmeta"), read(out.resolve("core3.zip")).keySet(), "fewer namespaces than parts");
         assertEquals(Set.of("pack.mcmeta", "assets/creature_sounds/sounds.json", "new/assets/creature_sounds/sounds.json"), read(out.resolve("sounds.zip")).keySet());
     }
     @Test void ordinaryZipAlsoWorks() throws Exception {
-        assertEquals(3, PackPartitioner.split(zip(resources(), false), directory.resolve("parts")).size());
+        assertEquals(PackPartitioner.PARTS.size(), PackPartitioner.split(zip(resources(), false), directory.resolve("parts")).size());
+    }
+    @Test void balancesNamespacesByNamespacesTimesEntries() {
+        var sizes = Map.of("a", 100, "b", 50, "c", 5, "d", 4, "e", 3, "f", 2);
+        assertEquals(List.of(List.of("a"), List.of("b"), List.of("c", "d", "e", "f")), PackPartitioner.balance(sizes, 3));
+        assertEquals(List.of(List.of("x"), List.of(), List.of()), PackPartitioner.balance(Map.of("x", 1), 3));
+        assertEquals(List.of(List.of(), List.of()), PackPartitioner.balance(Map.of(), 2));
+    }
+    @Test void spreadsCoreNamespacesAndKeepsRootFilesInTheFirstPart() throws Exception {
+        var files = resources();
+        files.put("pack.png", "icon");
+        files.put("new/readme.txt", "overlay root file");
+        for (int i = 0; i < 6; i++) files.put("assets/minecraft/textures/block/b" + i + ".png", "block");
+        for (int i = 0; i < 4; i++) files.put("assets/big/models/m" + i + ".json", "model");
+        Path out = directory.resolve("spread");
+        PackPartitioner.split(zip(files, true), out);
+        var core = read(out.resolve("core.zip"));
+        assertTrue(core.containsKey("assets/minecraft/textures/block/b0.png"));
+        assertTrue(core.containsKey("new/readme.txt"));
+        assertEquals("icon", core.get("pack.png"));
+        assertTrue(read(out.resolve("core2.zip")).containsKey("assets/big/models/m0.json"));
+        assertTrue(read(out.resolve("core3.zip")).containsKey("assets/mixed/sounds.json"));
+        assertEquals("icon", read(out.resolve("models.zip")).get("pack.png"));
     }
     @Test void rejectsCrossPackFilters() throws Exception {
         var files = resources(); files.put("pack.mcmeta", "{\"pack\":{},\"filter\":{\"block\":[]}}");

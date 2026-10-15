@@ -165,7 +165,7 @@ class MultipartPackServiceCoverageTest {
     refresh.get().run();
     service.send(player);
     ResourcePackRequest request = request();
-    assertEquals(3, request.packs().size());
+    assertEquals(PackPartitioner.PARTS.size(), request.packs().size());
     assertTrue(request.replace());
     assertFalse(request.required());
     assertNull(request.prompt());
@@ -210,7 +210,7 @@ class MultipartPackServiceCoverageTest {
             "assets/creature_sounds/sounds.json",
             "sound"),
         payloads);
-    verify(logger, times(1)).info("Published three resource-pack parts for " + sourceHash);
+    verify(logger, times(1)).info("Published resource-pack parts for " + sourceHash);
     assertTrue(service.loading(playerId));
   }
 
@@ -247,9 +247,10 @@ class MultipartPackServiceCoverageTest {
     emit(first, first.packs().getFirst().id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
     emit(first, first.packs().getFirst().id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
     assertTrue(service.loading(playerId));
-    emit(first, first.packs().get(1).id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
-    assertTrue(service.loading(playerId));
-    emit(first, first.packs().get(2).id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
+    for (ResourcePackInfo pack : first.packs().subList(1, first.packs().size())) {
+      assertTrue(service.loading(playerId));
+      emit(first, pack.id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
+    }
     assertFalse(service.loading(playerId));
     verify(player, never()).sendMessage(any(Component.class));
     assertTrue(service.sendPublished(player, sourceHash, false, null, fallback));
@@ -415,7 +416,7 @@ class MultipartPackServiceCoverageTest {
     Files.setLastModifiedTime(cache, FileTime.fromMillis(System.currentTimeMillis() + 5000));
     refresh.get().run();
     assertTrue(service.sendPublished(player, sourceHash, false, null, () -> {}));
-    verify(logger).info("Published three resource-pack parts for " + sourceHash);
+    verify(logger).info("Published resource-pack parts for " + sourceHash);
   }
 
   @Test
@@ -462,7 +463,7 @@ class MultipartPackServiceCoverageTest {
       refresh.get().run();
       assertFalse(
           service.sendPublished(player, sourceHash, false, null, () -> fail("Stale publication")));
-      verify(logger, never()).info(startsWith("Published three resource-pack parts"));
+      verify(logger, never()).info(startsWith("Published resource-pack parts"));
       if (!interruption.equals("close")) {
         refresh.get().run();
         assertTrue(service.sendPublished(player, sourceHash, false, null, () -> {}));
@@ -564,14 +565,14 @@ class MultipartPackServiceCoverageTest {
   }
 
   @Test
-  void requiredDeliveryCompletesTrueOnceOnlyAfterAllThreePartsLoad() throws Exception {
+  void requiredDeliveryCompletesTrueOnceOnlyAfterAllPartsLoad() throws Exception {
     publish();
     service.sendRequired(player, results::add);
     ResourcePackRequest first = request();
     assertTrue(first.required());
     assertTrue(first.replace());
     assertEquals(StandardPackFallback.PROMPT, first.prompt());
-    assertEquals(3, first.packs().size());
+    assertEquals(PackPartitioner.PARTS.size(), first.packs().size());
     for (ResourcePackInfo pack : first.packs()) {
       String part = Path.of(pack.uri().getPath()).getFileName().toString().replace(".zip", "");
       assertNotEquals(
@@ -585,12 +586,14 @@ class MultipartPackServiceCoverageTest {
           "A connection's first request reuses the client's cached download");
     }
     emit(first, first.packs().get(0).id(), ResourcePackStatus.ACCEPTED);
-    emit(first, first.packs().get(0).id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
-    emit(first, first.packs().get(1).id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
-    assertEquals(List.of(), results, "Two of three parts is still loading");
-    emit(first, first.packs().get(2).id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
+    UUID last = first.packs().get(first.packs().size() - 1).id();
+    for (ResourcePackInfo pack : first.packs()) {
+      if (!pack.id().equals(last)) emit(first, pack.id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
+    }
+    assertEquals(List.of(), results, "The last part is still loading");
+    emit(first, last, ResourcePackStatus.SUCCESSFULLY_LOADED);
     assertEquals(List.of(true), results);
-    emit(first, first.packs().get(2).id(), ResourcePackStatus.FAILED_RELOAD);
+    emit(first, last, ResourcePackStatus.FAILED_RELOAD);
     timeouts.forEach(Runnable::run);
     assertEquals(List.of(true), results);
     itemsAdder.verify(() -> ItemsAdder.getPackUrl(anyBoolean()), never());
@@ -884,13 +887,25 @@ class MultipartPackServiceCoverageTest {
             "http://127.0.0.1:" + port);
   }
 
+  @Test
+  void anOlderLayoutOfTheSamePackDoesNotBlockPublishing() throws Exception {
+    Path old = directory.resolve("TFMCCore/resource-pack/parts-v1").resolve(sourceHash);
+    Files.createDirectories(old);
+    Files.writeString(old.resolve("manifest.properties"), "source=" + sourceHash + "\ncore=0\n");
+    Files.writeString(old.resolve("core.zip"), "three-part layout");
+    publish();
+    service.send(player);
+    assertEquals(PackPartitioner.PARTS.size(), request().packs().size());
+    assertEquals("three-part layout", Files.readString(old.resolve("core.zip")), "old generations stay for in-flight downloads");
+  }
+
   private void publish() throws IOException {
     start();
     refresh.get().run();
   }
 
   private Path publishedRoot() {
-    return directory.resolve("TFMCCore/resource-pack/parts-v1");
+    return directory.resolve("TFMCCore/resource-pack/" + PackPublisher.LAYOUT);
   }
 
   private ResourcePackRequest request() {

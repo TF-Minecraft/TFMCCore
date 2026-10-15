@@ -58,7 +58,7 @@ public final class MultipartPackService implements Listener, AutoCloseable {
         source = itemsAdder.resolve("output/generated.zip");
         standard = new StandardPackFallback(plugin, itemsAdder);
         cache = itemsAdder.resolve("storage/cache/various/resourcepacks.yml");
-        Path root = plugin.getDataFolder().toPath().resolve("resource-pack/parts-v1");
+        Path root = plugin.getDataFolder().toPath().resolve("resource-pack/" + PackPublisher.LAYOUT);
         publisher = new PackPublisher(root);
         http = new PackHttpServer(address, root);
         worker = Executors.newSingleThreadScheduledExecutor(runnable -> {
@@ -100,7 +100,7 @@ public final class MultipartPackService implements Listener, AutoCloseable {
             current = bundle;
             lastError = null;
             failedAttempt = null;
-            plugin.getLogger().info("Published three resource-pack parts for " + bundle.sourceHash());
+            plugin.getLogger().info("Published resource-pack parts for " + bundle.sourceHash());
         } catch (IOException | RuntimeException error) {
             current = null;
             failedAttempt = before;
@@ -130,7 +130,7 @@ public final class MultipartPackService implements Listener, AutoCloseable {
     }
 
     /**
-     * Required delivery for the join gate: the three parts, then once the standard pack if
+     * Required delivery for the join gate: every part, then once the standard pack if
      * they fail or time out. A connection's first request uses stable IDs so the client can
      * reuse its cached download; retries on that connection get fresh IDs. Completes once on the server thread with
      * true only after every pack loaded; a decline or discard completes false.
@@ -193,7 +193,7 @@ public final class MultipartPackService implements Listener, AutoCloseable {
                             Bukkit.getScheduler().runTask(plugin, () -> status(request, id, status, loaded, declined, fallback));
                         }
                     }).build());
-            plugin.getLogger().info("Sent three resource-pack parts to " + player.getName() + " (" + bundle.sourceHash() + ")");
+            plugin.getLogger().info("Sent resource-pack parts to " + player.getName() + " (" + bundle.sourceHash() + ")");
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (requests.remove(player.getUniqueId(), request) && player.isOnline()) {
                     player.removeResourcePacks(tracker.ids());
@@ -217,7 +217,7 @@ public final class MultipartPackService implements Listener, AutoCloseable {
         PackLoadTracker.Result result = tracker.accept(id, success, !status.intermediate() && !success);
         if (result == PackLoadTracker.Result.COMPLETE) {
             requests.remove(player.getUniqueId(), request);
-            plugin.getLogger().info("All three resource-pack parts loaded for " + player.getName());
+            plugin.getLogger().info("All resource-pack parts loaded for " + player.getName());
             loaded.run();
         } else if (result == PackLoadTracker.Result.FAILED) {
             requests.remove(player.getUniqueId(), request);

@@ -6,6 +6,11 @@ import java.util.*;
 
 /** Complete immutable generations; current changes only after every part is written. */
 public final class PackPublisher {
+    /**
+     * Published generations are keyed by ItemsAdder's source hash. Bump this when the split changes,
+     * so an older layout of the same source can never fail the integrity check and block publishing.
+     */
+    public static final String LAYOUT = "parts-v2";
     public record Bundle(String sourceHash, Path directory, Map<String, String> hashes) {
         public Bundle { hashes = Map.copyOf(hashes); }
     }
