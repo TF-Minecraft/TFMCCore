@@ -31,6 +31,7 @@ import net.luckperms.api.context.ImmutableContextSet;
 import net.luckperms.api.model.data.NodeMap;
 import net.luckperms.api.model.user.User;
 import net.luckperms.api.model.user.UserManager;
+import net.luckperms.api.node.Node;
 import net.luckperms.api.node.NodeBuilderRegistry;
 import net.luckperms.api.node.NodeType;
 import net.luckperms.api.node.types.InheritanceNode;
@@ -48,6 +49,7 @@ class BukkitTfmcActionsTest {
     private final UserManager users = mock(UserManager.class);
     private final Track track = mock(Track.class);
     private final User user = mock(User.class);
+    private final NodeMap data = mock(NodeMap.class);
     private final Player player = mock(Player.class);
     private BukkitTfmcActions actions;
 
@@ -72,7 +74,7 @@ class BukkitTfmcActionsTest {
         groups(group("helper+_player", true, true));
         when(users.getUser(ID)).thenReturn(user);
         when(users.saveUser(user)).thenReturn(CompletableFuture.completedFuture(null));
-        when(user.data()).thenReturn(mock(NodeMap.class));
+        when(user.data()).thenReturn(data);
         when(player.getUniqueId()).thenReturn(ID);
         when(player.getName()).thenReturn("RiverBonnie");
         actions = new BukkitTfmcActions(null, () -> api);
@@ -202,8 +204,11 @@ class BukkitTfmcActionsTest {
 
         assertEquals(Optional.of("helper+"), actions.highestTrack(player, order));
 
-        // Server-only, negated and absent tracks do not count
-        groups(group("helper+_player", true, true), group("staff_player", true, false), group("staff_player", false, true));
+        // Server-only, negated and non-group nodes and absent tracks do not count
+        PermissionNode permission = mock(PermissionNode.class);
+        when(permission.getType()).thenReturn(NodeType.PERMISSION);
+        groups(group("helper+_player", true, true), group("staff_player", true, false), group("staff_player", false, true),
+                permission);
         assertEquals(Optional.of("helper+"), actions.highestTrack(player, order));
 
         groups(group("helper+_player", true, true), group("staff_player", true, true));
@@ -232,8 +237,8 @@ class BukkitTfmcActionsTest {
         verify(users, never()).saveUser(user);
     }
 
-    private void groups(InheritanceNode... nodes) {
-        when(user.getNodes(NodeType.INHERITANCE)).thenReturn(List.of(nodes));
+    private void groups(Node... nodes) {
+        when(data.toCollection()).thenReturn(List.of(nodes));
     }
 
     private static InheritanceNode group(String name, boolean value, boolean global) {
@@ -243,6 +248,7 @@ class BukkitTfmcActionsTest {
         when(node.getGroupName()).thenReturn(name);
         when(node.getValue()).thenReturn(value);
         when(node.getContexts()).thenReturn(contexts);
+        when(node.getType()).thenReturn(NodeType.INHERITANCE);
         return node;
     }
 

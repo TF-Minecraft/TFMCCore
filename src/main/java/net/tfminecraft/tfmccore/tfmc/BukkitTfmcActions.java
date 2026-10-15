@@ -211,9 +211,14 @@ public final class BukkitTfmcActions implements TfmcActions {
         return result;
     }
 
-    /** Whether the user's own global groups, the ones track steps act on, include one on the track. */
+    /**
+     * Whether the user's own stored global groups, the ones track steps act on, include one on
+     * the track. Transient groups are left out: a step would save them as permanent.
+     */
     private static boolean onTrack(User user, Track track) {
-        return user.getNodes(NodeType.INHERITANCE).stream()
+        return user.data().toCollection().stream()
+                .filter(NodeType.INHERITANCE::matches)
+                .map(NodeType.INHERITANCE::cast)
                 .filter(node -> node.getValue() && node.getContexts().isEmpty())
                 .map(InheritanceNode::getGroupName)
                 .anyMatch(track::containsGroup);
