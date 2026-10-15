@@ -99,18 +99,12 @@ public final class TfmcCommand {
                         .then(Commands.argument("reason", StringArgumentType.greedyString())
                                 .executes(context -> ban(context, StringArgumentType.getString(context, "reason"))))));
 
-        // The track names shape the tree, so they are fixed until restart; their permissions
-        // are read on every check so /tcore reload tfmc applies them
-        for (String name : config.tracks().keySet()) {
-            Predicate<CommandSourceStack> promote = permission(() -> trackPermission(name, true));
-            Predicate<CommandSourceStack> demote = permission(() -> trackPermission(name, false));
-            root.then(Commands.literal(name)
-                    .requires(promote.or(demote))
-                    .then(Commands.literal("promote").requires(promote)
-                            .executes(player(p -> step(p, name, true))))
-                    .then(Commands.literal("demote").requires(demote)
-                            .executes(player(p -> step(p, name, false)))));
-        }
+        // Promote and demote act on the player's highest track. Permissions are read on every
+        // check, so /tcore reload tfmc applies track changes
+        root.then(Commands.literal("promote").requires(source -> stepTrack(source.getSender(), true).isPresent())
+                .executes(player(p -> step(p, true))));
+        root.then(Commands.literal("demote").requires(source -> stepTrack(source.getSender(), false).isPresent())
+                .executes(player(p -> step(p, false))));
 
         // Content still being built on dev; each section stays hidden until tfmc.yml enables it
         root.then(Commands.literal("tutorial").requires(enabled("tutorials"))
@@ -265,6 +259,11 @@ public final class TfmcCommand {
         return Command.SINGLE_SUCCESS;
     }
 
+    // The node's requires check has already found the track
+    private void step(Player player, boolean promote) {
+        stepTrack(player, promote).ifPresent(track -> step(player, track, promote));
+    }
+
     private void step(Player player, String track, boolean promote) {
         actions.stepTrack(player, track, promote).whenCompleteAsync((step, error) -> {
             if (error != null) {
@@ -398,12 +397,19 @@ public final class TfmcCommand {
         };
     }
 
-    private String trackPermission(String track, boolean promote) {
-        TfmcConfig.TrackSteps steps = config.tracks().get(track);
-        if (steps == null) {
-            return null;
+    /**
+     * The track a promote or demote moves the sender along: their highest track, the last in
+     * tfmc.yml holding one of their groups, if they hold that step's permission on it.
+     */
+    private Optional<String> stepTrack(CommandSender sender, boolean promote) {
+        if (!(sender instanceof Player player)) {
+            return Optional.empty();
         }
-        return promote ? steps.promotePermission() : steps.demotePermission();
+        Map<String, TfmcConfig.TrackSteps> tracks = config.tracks();
+        return actions.highestTrack(player, List.copyOf(tracks.keySet())).filter(track -> {
+            TfmcConfig.TrackSteps steps = tracks.get(track);
+            return holds(player, promote ? steps.promotePermission() : steps.demotePermission());
+        });
     }
 
     private Predicate<CommandSourceStack> enabled(String section) {
@@ -420,10 +426,11 @@ public final class TfmcCommand {
 
     // Restricted nodes fail closed: a missing or blank permission hides the command from everyone
     private static Predicate<CommandSourceStack> permission(Supplier<String> node) {
-        return source -> {
-            String permission = node.get();
-            return permission != null && !permission.isBlank() && source.getSender().hasPermission(permission);
-        };
+        return source -> holds(source.getSender(), node.get());
+    }
+
+    private static boolean holds(CommandSender sender, String permission) {
+        return permission != null && !permission.isBlank() && sender.hasPermission(permission);
     }
 
     private static SuggestionProvider<CommandSourceStack> onlinePlayers() {

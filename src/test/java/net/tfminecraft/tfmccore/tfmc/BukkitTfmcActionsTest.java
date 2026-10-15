@@ -31,7 +31,10 @@ import net.luckperms.api.context.ImmutableContextSet;
 import net.luckperms.api.model.data.NodeMap;
 import net.luckperms.api.model.user.User;
 import net.luckperms.api.model.user.UserManager;
+import net.luckperms.api.node.Node;
 import net.luckperms.api.node.NodeBuilderRegistry;
+import net.luckperms.api.node.NodeType;
+import net.luckperms.api.node.types.InheritanceNode;
 import net.luckperms.api.node.types.PermissionNode;
 import net.luckperms.api.track.DemotionResult;
 import net.luckperms.api.track.PromotionResult;
@@ -46,6 +49,7 @@ class BukkitTfmcActionsTest {
     private final UserManager users = mock(UserManager.class);
     private final Track track = mock(Track.class);
     private final User user = mock(User.class);
+    private final NodeMap data = mock(NodeMap.class);
     private final Player player = mock(Player.class);
     private BukkitTfmcActions actions;
 
@@ -66,9 +70,11 @@ class BukkitTfmcActionsTest {
         when(api.getNodeBuilderRegistry()).thenReturn(nodes);
         when(nodes.forPermission()).thenReturn(mock(PermissionNode.Builder.class, RETURNS_SELF));
         when(tracks.getTrack("helper+")).thenReturn(track);
+        when(track.containsGroup("helper+_player")).thenReturn(true);
+        groups(group("helper+_player", true, true));
         when(users.getUser(ID)).thenReturn(user);
         when(users.saveUser(user)).thenReturn(CompletableFuture.completedFuture(null));
-        when(user.data()).thenReturn(mock(NodeMap.class));
+        when(user.data()).thenReturn(data);
         when(player.getUniqueId()).thenReturn(ID);
         when(player.getName()).thenReturn("RiverBonnie");
         actions = new BukkitTfmcActions(null, () -> api);
@@ -186,6 +192,64 @@ class BukkitTfmcActionsTest {
         verify(users, times(1)).loadUser(ID);
         firstLoad.complete(user);
         verify(users, times(2)).loadUser(ID);
+    }
+
+    @Test
+    void theHighestTrackIsTheLastHoldingOneOfTheUsersOwnGlobalGroups() {
+        TrackManager tracks = api.getTrackManager();
+        Track staff = mock(Track.class);
+        when(staff.containsGroup("staff_player")).thenReturn(true);
+        when(tracks.getTrack("staff")).thenReturn(staff);
+        List<String> order = List.of("helper", "helper+", "staff");
+
+        assertEquals(Optional.of("helper+"), actions.highestTrack(player, order));
+
+        // Server-only, negated and non-group nodes and absent tracks do not count
+        PermissionNode permission = mock(PermissionNode.class);
+        when(permission.getType()).thenReturn(NodeType.PERMISSION);
+        groups(group("helper+_player", true, true), group("staff_player", true, false), group("staff_player", false, true),
+                permission);
+        assertEquals(Optional.of("helper+"), actions.highestTrack(player, order));
+
+        groups(group("helper+_player", true, true), group("staff_player", true, true));
+        assertEquals(Optional.of("staff"), actions.highestTrack(player, order));
+        assertEquals(Optional.of("helper+"), actions.highestTrack(player, List.of("helper+", "helper")));
+
+        groups();
+        assertEquals(Optional.empty(), actions.highestTrack(player, order));
+    }
+
+    @Test
+    void noTrackWithoutLuckPermsOrALoadedUser() {
+        when(users.getUser(ID)).thenReturn(null);
+        assertEquals(Optional.empty(), actions.highestTrack(player, List.of("helper+")));
+        assertEquals(Optional.empty(), new BukkitTfmcActions(null, () -> null).highestTrack(player, List.of("helper+")));
+    }
+
+    @Test
+    void playersOffTheTrackAreNeverAddedToIt() {
+        when(users.loadUser(ID)).thenReturn(CompletableFuture.completedFuture(user));
+        groups();
+        promoteTo("helper+_player");
+
+        assertFalse(actions.stepTrack(player, "helper+", true).join().changed());
+        verify(track, never()).promote(any(User.class), any(ContextSet.class));
+        verify(users, never()).saveUser(user);
+    }
+
+    private void groups(Node... nodes) {
+        when(data.toCollection()).thenReturn(List.of(nodes));
+    }
+
+    private static InheritanceNode group(String name, boolean value, boolean global) {
+        InheritanceNode node = mock(InheritanceNode.class);
+        ImmutableContextSet contexts = mock(ImmutableContextSet.class);
+        when(contexts.isEmpty()).thenReturn(global);
+        when(node.getGroupName()).thenReturn(name);
+        when(node.getValue()).thenReturn(value);
+        when(node.getContexts()).thenReturn(contexts);
+        when(node.getType()).thenReturn(NodeType.INHERITANCE);
+        return node;
     }
 
     private void promoteTo(String group) {

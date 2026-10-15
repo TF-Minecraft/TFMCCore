@@ -1,8 +1,7 @@
 # /tfmc player commands. Messages use MiniMessage (https://docs.advntr.dev/minimessage/format).
 # A message may be a single string or a list of lines.
 # Commands are run as written, with <player> replaced by the player's name.
-# Changes apply after /tcore reload tfmc. Adding or removing a helper track needs a restart;
-# changing a track's permissions does not.
+# Changes apply after /tcore reload tfmc.
 
 messages:
   players-only: "<red>Only players can use this command."
@@ -149,7 +148,8 @@ ban:
     - "tempban <target> 8h <reason>"
   message: "<green>Tempbanned <red><target></red> for 8 hours."
 
-# /tfmc <track> promote|demote moves the player one step along a LuckPerms track.
+# /tfmc promote|demote moves the player one step along their highest LuckPerms track: the last
+# one listed here that holds one of their global groups. List tracks lowest first.
 helper-tracks:
   helper:
     promote-permission: helper.promote
@@ -157,11 +157,14 @@ helper-tracks:
   helper+:
     promote-permission: helper+.promote
     demote-permission: helper+.demote
+  staff:
+    promote-permission: staff.promote
+    demote-permission: staff.demote
 track-messages:
   promoted: "<green>You are now <yellow><group></yellow>."
   demoted: "<green>You are now <yellow><group></yellow>."
   removed: "<green>You are no longer on the <yellow><track></yellow> track."
-  failed: "<red>Your helper status could not be changed."
+  failed: "<red>Your status could not be changed."
 
 # /tfmc poster <name> runs the command as the player.
 posters:

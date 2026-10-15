@@ -250,7 +250,7 @@ class BukkitTfmcActionsCoverageTest {
   @Test
   void aFailedUserLoadReleasesTheQueueAndAnUnsuccessfulDemotionDoesNotSave() {
     LuckPerms api = mock(LuckPerms.class, RETURNS_DEEP_STUBS);
-    User user = mock(User.class);
+    User user = mock(User.class, RETURNS_DEEP_STUBS);
     Player player = mock(Player.class);
     UUID id = UUID.randomUUID();
     when(player.getUniqueId()).thenReturn(id);
