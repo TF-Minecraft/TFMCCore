@@ -58,7 +58,7 @@ public final class MultipartPackService implements Listener, AutoCloseable {
         source = itemsAdder.resolve("output/generated.zip");
         standard = new StandardPackFallback(plugin, itemsAdder);
         cache = itemsAdder.resolve("storage/cache/various/resourcepacks.yml");
-        Path root = plugin.getDataFolder().toPath().resolve("resource-pack/parts-v1");
+        Path root = plugin.getDataFolder().toPath().resolve("resource-pack/" + PackPublisher.LAYOUT);
         publisher = new PackPublisher(root);
         http = new PackHttpServer(address, root);
         worker = Executors.newSingleThreadScheduledExecutor(runnable -> {

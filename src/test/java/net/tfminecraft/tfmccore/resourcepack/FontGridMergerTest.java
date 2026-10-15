@@ -166,13 +166,32 @@ class FontGridMergerTest {
         assertEquals(Map.of(), merge(files));
     }
 
-    @Test void glyphsTooLargeToShareASheetStayAlone() throws Exception {
-        byte[] glyph = png(new BufferedImage(2049, 2049, BufferedImage.TYPE_INT_ARGB));
-        String font = font(bitmap("bitmap", "font/big.png", "\\ue000", ",\"ascent\":7"), bitmap("bitmap", "font/big.png", "\\ue001", ",\"ascent\":7"));
-        Map<String, byte[]> merged = merge(Map.of("assets/minecraft/font/default.json", font.getBytes(StandardCharsets.UTF_8),
-                "assets/minecraft/textures/font/big.png", glyph));
-        assertEquals(Set.of("assets/minecraft/font/default.json"), merged.keySet());
-        assertEquals(JsonParser.parseString(font), JsonParser.parseString(new String(merged.get("assets/minecraft/font/default.json"), StandardCharsets.UTF_8)));
+    @Test void boundsWhatItReadsAndHoldsInMemory() throws Exception {
+        String shape = ",\"ascent\":7";
+        byte[] tile = png(new BufferedImage(1024, 1024, BufferedImage.TYPE_INT_ARGB));
+        Map<String, byte[]> files = new TreeMap<>();
+        files.put("assets/minecraft/textures/font/tile.png", tile);
+        files.put("assets/minecraft/textures/font/huge.png", png(new BufferedImage(1025, 1024, BufferedImage.TYPE_INT_ARGB)));
+        byte[] padded = Arrays.copyOf(png(image(8, 8, 1)), 9 * 1024 * 1024); // inflates past the texture limit
+        files.put("assets/minecraft/textures/font/padded.png", padded);
+        List<String> tiles = new ArrayList<>();
+        for (int i = 0; i < 17; i++) tiles.add(bitmap("bitmap", "font/tile.png", String.format("\\u%04x", 0xe000 + i), shape));
+        files.put("assets/minecraft/font/default.json", font(tiles.toArray(String[]::new)).getBytes(StandardCharsets.UTF_8));
+        files.put("assets/x/font/huge.json", font(bitmap("bitmap", "minecraft:font/huge.png", "\\ue000", shape),
+                bitmap("bitmap", "minecraft:font/huge.png", "\\ue001", shape)).getBytes(StandardCharsets.UTF_8));
+        files.put("assets/x/font/padded.json", font(bitmap("bitmap", "minecraft:font/padded.png", "\\ue000", shape),
+                bitmap("bitmap", "minecraft:font/padded.png", "\\ue001", shape)).getBytes(StandardCharsets.UTF_8));
+        String spaced = " ".repeat(5 * 1024 * 1024) + font(bitmap("bitmap", "font/tile.png", "\\ue000", shape), bitmap("bitmap", "font/tile.png", "\\ue001", shape));
+        files.put("assets/x/font/spaced.json", spaced.getBytes(StandardCharsets.UTF_8));
+
+        Map<String, byte[]> merged = merge(files);
+
+        assertEquals(2, merged.size(), "only default.json and its one sheet");
+        JsonArray providers = JsonParser.parseString(new String(merged.get("assets/minecraft/font/default.json"), StandardCharsets.UTF_8))
+                .getAsJsonObject().getAsJsonArray("providers");
+        assertEquals(2, providers.size(), "16 tiles fill the 16M-pixel budget; the 17th stays as it was");
+        assertEquals(4, providers.get(0).getAsJsonObject().getAsJsonArray("chars").size());
+        assertEquals(JsonParser.parseString(tiles.get(16)), providers.get(1));
     }
 
     @Test void decodesWhatTheClientDecodesAndRejectsTheRest() throws Exception {
@@ -187,7 +206,33 @@ class FontGridMergerTest {
         byte[] headerless = new byte[45];
         System.arraycopy(manual(1, 1, 8, 6, rgba), 0, headerless, 0, 8);
         System.arraycopy(chunk("IEND", new byte[0]), 0, headerless, 8, 12);
+        byte[] signature = Arrays.copyOf(manual(1, 1, 8, 6, rgba), 8);
+        byte[] header = chunk("IHDR", ByteBuffer.allocate(13).putInt(1).putInt(1).put((byte) 8).put((byte) 6).array());
+        byte[] data = chunk("IDAT", rgba), end = chunk("IEND", new byte[0]);
+        byte[] plte = chunk("PLTE", new byte[] {(byte) 255, 0, 0});
+        java.util.function.Function<byte[][], byte[]> join = parts -> {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            out.writeBytes(signature);
+            for (byte[] part : parts) out.writeBytes(part);
+            return out.toByteArray();
+        };
+        byte[] paletteData = zlib(new byte[] {0, 0});
         for (byte[] rejected : List.of(
+                join.apply(new byte[][] {header, chunk("ABCD", new byte[0]), data, end}),
+                join.apply(new byte[][] {data, header, end}),
+                join.apply(new byte[][] {header, header, data, end}),
+                join.apply(new byte[][] {header, data, chunk("tRNS", new byte[1]), end}),
+                join.apply(new byte[][] {header, data, plte, end}),
+                manual(1, 1, 8, 3, paletteData, plte, plte),
+                manual(1, 1, 8, 3, paletteData, plte, chunk("tRNS", new byte[1]), chunk("tRNS", new byte[1])),
+                manual(1, 1, 8, 3, paletteData, chunk("tRNS", new byte[1]), plte),
+                manual(1, 1, 8, 3, paletteData),
+                manual(1, 1, 8, 3, paletteData, chunk("PLTE", new byte[4])),
+                manual(1, 1, 8, 3, paletteData, chunk("PLTE", new byte[771])),
+                manual(1, 1, 8, 3, paletteData, plte, chunk("tRNS", new byte[2])),
+                withHeader(rgba, 10, 1),
+                withHeader(rgba, 11, 1),
+                withHeader(rgba, 12, 2),
                 new byte[10],
                 new byte[40],
                 badLength,
@@ -203,6 +248,15 @@ class FontGridMergerTest {
                 manual(1, 1, 8, 6, zlib(new byte[] {0})))) {
             assertNull(FontGridMerger.decode(rejected));
         }
+    }
+
+    /** A 1x1 RGBA PNG with one IHDR field (10 compression, 11 filter, 12 interlace) changed. */
+    private static byte[] withHeader(byte[] rgba, int field, int value) {
+        byte[] png = manual(1, 1, 8, 6, rgba);
+        png[16 + field] = (byte) value;
+        byte[] fixed = chunk("IHDR", Arrays.copyOfRange(png, 16, 29));
+        System.arraycopy(fixed, 0, png, 8, fixed.length);
+        return png;
     }
 
     @Test void splitWritesMergedFontsAsReadableRecordsInTheFontsPart() throws Exception {

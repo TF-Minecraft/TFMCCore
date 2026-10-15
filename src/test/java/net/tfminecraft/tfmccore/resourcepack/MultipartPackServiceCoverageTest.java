@@ -887,13 +887,25 @@ class MultipartPackServiceCoverageTest {
             "http://127.0.0.1:" + port);
   }
 
+  @Test
+  void anOlderLayoutOfTheSamePackDoesNotBlockPublishing() throws Exception {
+    Path old = directory.resolve("TFMCCore/resource-pack/parts-v1").resolve(sourceHash);
+    Files.createDirectories(old);
+    Files.writeString(old.resolve("manifest.properties"), "source=" + sourceHash + "\ncore=0\n");
+    Files.writeString(old.resolve("core.zip"), "three-part layout");
+    publish();
+    service.send(player);
+    assertEquals(PackPartitioner.PARTS.size(), request().packs().size());
+    assertEquals("three-part layout", Files.readString(old.resolve("core.zip")), "old generations stay for in-flight downloads");
+  }
+
   private void publish() throws IOException {
     start();
     refresh.get().run();
   }
 
   private Path publishedRoot() {
-    return directory.resolve("TFMCCore/resource-pack/parts-v1");
+    return directory.resolve("TFMCCore/resource-pack/" + PackPublisher.LAYOUT);
   }
 
   private ResourcePackRequest request() {

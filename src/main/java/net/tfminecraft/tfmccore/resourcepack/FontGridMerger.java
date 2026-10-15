@@ -18,6 +18,10 @@ import javax.imageio.stream.*;
 final class FontGridMerger {
     static final String SHEETS = "tfmc_font_grid/";
     private static final int MAX_SHEET = 4096;
+    // Protected ZIPs mask uncompressed sizes, so every read is bounded as it happens.
+    private static final int MAX_FONT_BYTES = 4 * 1024 * 1024, MAX_TEXTURE_BYTES = 8 * 1024 * 1024;
+    // Glyph images stay in memory until their sheet is written: cap each and their total.
+    private static final long MAX_GLYPH_PIXELS = 1024 * 1024, MAX_HELD_PIXELS = 16L * 1024 * 1024;
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private record Glyph(int codePoint, BufferedImage image, JsonElement provider) {}
     private FontGridMerger() {}
@@ -25,13 +29,16 @@ final class FontGridMerger {
     /** Rewritten root font files and their new sheets, keyed by archive path. */
     static Map<String, byte[]> merge(ZipFile zip, Set<String> overlays) throws IOException {
         Map<String, byte[]> files = new TreeMap<>();
+        long[] held = {0};
         List<? extends ZipEntry> fonts = zip.stream().filter(entry -> entry.getName().matches("assets/[^/]+/font/.+\\.json")).toList();
         for (ZipEntry entry : fonts) {
             String namespace = entry.getName().split("/")[1];
             Map<String, byte[]> sheets = new TreeMap<>();
+            byte[] json = read(zip, entry, MAX_FONT_BYTES);
+            if (json == null) continue;
             try {
-                JsonObject font = JsonParser.parseString(new String(read(zip, entry), StandardCharsets.UTF_8)).getAsJsonObject();
-                JsonArray providers = merge(zip, overlays, namespace, font.getAsJsonArray("providers"), sheets);
+                JsonObject font = JsonParser.parseString(new String(json, StandardCharsets.UTF_8)).getAsJsonObject();
+                JsonArray providers = merge(zip, overlays, namespace, font.getAsJsonArray("providers"), sheets, held);
                 if (providers == null) continue;
                 font.add("providers", providers);
                 files.put(entry.getName(), GSON.toJson(font).getBytes(StandardCharsets.UTF_8));
@@ -44,7 +51,7 @@ final class FontGridMerger {
     }
 
     private static JsonArray merge(ZipFile zip, Set<String> overlays, String namespace, JsonArray providers,
-            Map<String, byte[]> sheets) throws IOException {
+            Map<String, byte[]> sheets, long[] held) throws IOException {
         Map<Integer, Integer> uses = new HashMap<>();
         for (JsonElement provider : providers) {
             List<Integer> points = codePoints(provider);
@@ -55,7 +62,7 @@ final class FontGridMerger {
         Map<String, List<Glyph>> groups = new LinkedHashMap<>();
         List<Object> order = new ArrayList<>();
         for (JsonElement provider : providers) {
-            Glyph glyph = glyph(zip, overlays, provider, uses);
+            Glyph glyph = glyph(zip, overlays, provider, uses, held);
             if (glyph == null) { order.add(provider); continue; }
             String key = glyph.image.getWidth() + "x" + glyph.image.getHeight() + GSON.toJson(shape(provider));
             if (!groups.containsKey(key)) { groups.put(key, new ArrayList<>()); order.add(key); }
@@ -66,13 +73,12 @@ final class FontGridMerger {
         for (Object item : order) {
             if (item instanceof JsonElement provider) { result.add(provider); continue; }
             List<Glyph> glyphs = groups.get(item);
+            if (glyphs.size() == 1) { result.add(glyphs.get(0).provider); continue; }
             int width = glyphs.get(0).image.getWidth(), height = glyphs.get(0).image.getHeight();
             int columns = Math.min((int) Math.ceil(Math.sqrt(glyphs.size())), MAX_SHEET / width);
             int perSheet = columns * (MAX_SHEET / height);
             for (int start = 0; start < glyphs.size(); start += perSheet) {
-                List<Glyph> chunk = glyphs.subList(start, Math.min(glyphs.size(), start + perSheet));
-                if (chunk.size() == 1) { result.add(chunk.get(0).provider); continue; }
-                result.add(sheet(chunk, columns, namespace, sheets));
+                result.add(sheet(glyphs.subList(start, Math.min(glyphs.size(), start + perSheet)), columns, namespace, sheets));
             }
         }
         return result;
@@ -124,7 +130,8 @@ final class FontGridMerger {
         return points;
     }
 
-    private static Glyph glyph(ZipFile zip, Set<String> overlays, JsonElement element, Map<Integer, Integer> uses) throws IOException {
+    private static Glyph glyph(ZipFile zip, Set<String> overlays, JsonElement element, Map<Integer, Integer> uses,
+            long[] held) throws IOException {
         JsonObject provider = element.getAsJsonObject();
         if (!provider.get("type").getAsString().replace("minecraft:", "").equals("bitmap")) return null;
         JsonArray rows = provider.getAsJsonArray("chars");
@@ -137,18 +144,28 @@ final class FontGridMerger {
         for (String overlay : overlays) if (zip.getEntry(overlay + "/" + texture) != null) return null;
         ZipEntry entry = zip.getEntry(texture);
         if (entry == null) return null; // Vanilla textures are not in the pack.
-        BufferedImage image = decode(read(zip, entry));
-        return image == null ? null : new Glyph(points[0], image, element);
+        byte[] png = read(zip, entry, MAX_TEXTURE_BYTES);
+        BufferedImage image = png == null ? null : decode(png);
+        if (image == null) return null;
+        long pixels = (long) image.getWidth() * image.getHeight();
+        if (pixels > MAX_GLYPH_PIXELS || held[0] + pixels > MAX_HELD_PIXELS) return null;
+        held[0] += pixels;
+        return new Glyph(points[0], image, element);
     }
 
-    private static byte[] read(ZipFile zip, ZipEntry entry) throws IOException {
-        try (InputStream in = zip.getInputStream(entry)) { return in.readAllBytes(); }
+    /** The entry's bytes, or null when it inflates past {@code limit}. */
+    private static byte[] read(ZipFile zip, ZipEntry entry, int limit) throws IOException {
+        try (InputStream in = zip.getInputStream(entry)) {
+            byte[] bytes = in.readNBytes(limit + 1);
+            return bytes.length > limit ? null : bytes;
+        }
     }
 
     /**
      * Decodes 8-bit RGB, RGBA and palette PNGs exactly as the client does. ItemsAdder scrambles chunk
      * CRCs and the zlib checksum, which the client ignores, so the image data is inflated raw and
-     * rebuilt first. Other formats return null and stay unmerged.
+     * rebuilt first. Other formats, and anything stb_image would reject (unknown critical chunks,
+     * misplaced chunks, bad palettes, non-standard header fields), return null and stay unmerged.
      */
     static BufferedImage decode(byte[] png) throws IOException {
         if (png.length < 33 || ByteBuffer.wrap(png).getLong() != 0x89504E470D0A1A0AL) return null;
@@ -160,12 +177,17 @@ final class FontGridMerger {
             if (length < 0 || at + 12L + length > png.length) return null;
             String type = new String(png, at + 4, 4, StandardCharsets.ISO_8859_1);
             byte[] body = Arrays.copyOfRange(png, at + 8, at + 8 + length);
+            if ((header == null) != type.equals("IHDR")) return null; // IHDR first, and only once.
             switch (type) {
                 case "IHDR" -> header = body;
-                case "PLTE" -> palette = body;
-                case "tRNS" -> transparency = body;
+                case "PLTE" -> { if (idat.size() > 0 || palette != null) return null; palette = body; }
+                case "tRNS" -> {
+                    if (idat.size() > 0 || transparency != null || header[9] == 3 && palette == null) return null;
+                    transparency = body;
+                }
                 case "IDAT" -> idat.write(body);
-                default -> { }
+                case "IEND" -> { }
+                default -> { if (Character.isUpperCase(type.charAt(0))) return null; } // Unknown critical chunk.
             }
             if (type.equals("IEND")) break;
             at += 12 + length;
@@ -173,8 +195,11 @@ final class FontGridMerger {
         if (header == null || header.length != 13 || idat.size() < 2) return null;
         int width = ByteBuffer.wrap(header).getInt(0), height = ByteBuffer.wrap(header).getInt(4);
         int depth = header[8], colour = header[9];
-        boolean supported = colour == 3 ? depth <= 8 : depth == 8 && (colour == 6 || colour == 2 && transparency == null);
-        if (!supported || width < 1 || height < 1 || width > MAX_SHEET || height > MAX_SHEET) return null;
+        boolean supported = colour == 3 ? depth <= 8 && palette != null && palette.length % 3 == 0 && palette.length <= 768
+                        && (transparency == null || transparency.length <= palette.length / 3)
+                : depth == 8 && (colour == 6 || colour == 2 && transparency == null);
+        boolean standard = header[10] == 0 && header[11] == 0 && (header[12] == 0 || header[12] == 1);
+        if (!supported || !standard || width < 1 || height < 1 || width > MAX_SHEET || height > MAX_SHEET) return null;
         // Raw inflate skips the two-byte zlib header and never checks the trailing Adler-32.
         Inflater inflater = new Inflater(true);
         ByteArrayOutputStream raw = new ByteArrayOutputStream();
