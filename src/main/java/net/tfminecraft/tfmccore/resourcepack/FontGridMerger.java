@@ -17,12 +17,13 @@ import javax.imageio.stream.*;
  */
 final class FontGridMerger {
     static final String SHEETS = "tfmc_font_grid/";
-    private static final int MAX_SHEET = 4096;
+    private static final int MAX_SHEET = 2048;
     // Protected ZIPs mask uncompressed sizes, so every read is bounded as it happens.
     private static final int MAX_FONT_BYTES = 4 * 1024 * 1024, MAX_TEXTURE_BYTES = 8 * 1024 * 1024;
-    // Glyph images stay in memory until their sheet is written: cap each and their total.
-    private static final long MAX_GLYPH_PIXELS = 1024 * 1024, MAX_HELD_PIXELS = 16L * 1024 * 1024;
-    // Rewritten fonts and sheets are held until the parts are written; fonts past this stay as they are.
+    // A font's glyph images stay in memory until its sheets are written: cap each and their total.
+    private static final long MAX_GLYPH_PIXELS = 512 * 512, MAX_FONT_PIXELS = 4L * 1024 * 1024;
+    // Rewritten fonts and sheets are held until the parts are written. Sheets are encoded into this
+    // room as they go, and a font that does not fit stays as it was.
     private static final long MAX_WRITTEN_BYTES = 16L * 1024 * 1024;
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private record Glyph(int codePoint, BufferedImage image, JsonElement provider) {}
@@ -31,7 +32,6 @@ final class FontGridMerger {
     /** Rewritten root font files and their new sheets, keyed by archive path. */
     static Map<String, byte[]> merge(ZipFile zip, Set<String> overlays) throws IOException {
         Map<String, byte[]> files = new TreeMap<>();
-        long[] held = {0};
         long written = 0;
         List<? extends ZipEntry> fonts = zip.stream().filter(entry -> entry.getName().matches("assets/[^/]+/font/.+\\.json")).toList();
         for (ZipEntry entry : fonts) {
@@ -39,9 +39,10 @@ final class FontGridMerger {
             Map<String, byte[]> sheets = new TreeMap<>();
             byte[] json = read(zip, entry, MAX_FONT_BYTES);
             if (json == null) continue;
+            long[] held = {0}, room = {MAX_WRITTEN_BYTES - written};
             try {
                 JsonObject font = JsonParser.parseString(new String(json, StandardCharsets.UTF_8)).getAsJsonObject();
-                JsonArray providers = merge(zip, overlays, namespace, font.getAsJsonArray("providers"), sheets, held);
+                JsonArray providers = merge(zip, overlays, namespace, font.getAsJsonArray("providers"), sheets, held, room);
                 if (providers == null) continue;
                 font.add("providers", providers);
                 byte[] rewritten = GSON.toJson(font).getBytes(StandardCharsets.UTF_8);
@@ -50,15 +51,15 @@ final class FontGridMerger {
                 written += size;
                 files.put(entry.getName(), rewritten);
                 files.putAll(sheets);
-            } catch (RuntimeException malformed) {
-                // The client rejects the same file; leave it exactly as ItemsAdder wrote it.
+            } catch (RuntimeException malformedOrOverBudget) {
+                // Leave it exactly as ItemsAdder wrote it; the client rejects a malformed file the same way.
             }
         }
         return files;
     }
 
     private static JsonArray merge(ZipFile zip, Set<String> overlays, String namespace, JsonArray providers,
-            Map<String, byte[]> sheets, long[] held) throws IOException {
+            Map<String, byte[]> sheets, long[] held, long[] room) throws IOException {
         Map<Integer, Integer> uses = new HashMap<>();
         for (JsonElement provider : providers) {
             List<Integer> points = codePoints(provider);
@@ -85,13 +86,14 @@ final class FontGridMerger {
             int columns = Math.min((int) Math.ceil(Math.sqrt(glyphs.size())), MAX_SHEET / width);
             int perSheet = columns * (MAX_SHEET / height);
             for (int start = 0; start < glyphs.size(); start += perSheet) {
-                result.add(sheet(glyphs.subList(start, Math.min(glyphs.size(), start + perSheet)), columns, namespace, sheets));
+                result.add(sheet(glyphs.subList(start, Math.min(glyphs.size(), start + perSheet)), columns, namespace, sheets, room));
             }
         }
         return result;
     }
 
-    private static JsonObject sheet(List<Glyph> glyphs, int columns, String namespace, Map<String, byte[]> sheets) throws IOException {
+    private static JsonObject sheet(List<Glyph> glyphs, int columns, String namespace, Map<String, byte[]> sheets,
+            long[] room) throws IOException {
         int width = glyphs.get(0).image.getWidth(), height = glyphs.get(0).image.getHeight();
         int rows = (glyphs.size() + columns - 1) / columns;
         BufferedImage sheet = new BufferedImage(columns * width, rows * height, BufferedImage.TYPE_INT_ARGB);
@@ -107,8 +109,9 @@ final class FontGridMerger {
             }
             chars.add(line.toString());
         }
-        ByteArrayOutputStream png = new ByteArrayOutputStream();
+        CappedOutput png = new CappedOutput(room[0]);
         try (ImageOutputStream out = new MemoryCacheImageOutputStream(png)) { ImageIO.write(sheet, "png", out); }
+        room[0] -= png.size();
         String file = SHEETS + PackPartitioner.sha1(png.toByteArray()) + ".png";
         sheets.put("assets/" + namespace + "/textures/" + file, png.toByteArray());
         JsonObject provider = shape(glyphs.get(0).provider);
@@ -152,13 +155,28 @@ final class FontGridMerger {
         ZipEntry entry = zip.getEntry(texture);
         if (entry == null) return null; // Vanilla textures are not in the pack.
         byte[] png = read(zip, entry, MAX_TEXTURE_BYTES);
-        BufferedImage image = png == null ? null : decode(png, Math.min(MAX_GLYPH_PIXELS, MAX_HELD_PIXELS - held[0]));
+        BufferedImage image = png == null ? null : decode(png, Math.min(MAX_GLYPH_PIXELS, MAX_FONT_PIXELS - held[0]));
         if (image == null) return null;
         held[0] += (long) image.getWidth() * image.getHeight();
         return new Glyph(points[0], image, element);
     }
 
     /** The entry's bytes, or null when it inflates past {@code limit}. */
+    /** Thrown when a font's sheets outgrow the output room; that font stays as it was. */
+    private static final class OverBudget extends RuntimeException {
+        OverBudget() { super(null, null, false, false); }
+    }
+
+    /** Stops an encoding as soon as it passes the room left (ImageIO's cache writes in blocks). */
+    private static final class CappedOutput extends ByteArrayOutputStream {
+        private final long cap;
+        CappedOutput(long cap) { this.cap = cap; }
+        @Override public synchronized void write(byte[] bytes, int offset, int length) {
+            if (count + (long) length > cap) throw new OverBudget();
+            super.write(bytes, offset, length);
+        }
+    }
+
     private static byte[] read(ZipFile zip, ZipEntry entry, int limit) throws IOException {
         try (InputStream in = zip.getInputStream(entry)) {
             byte[] bytes = in.readNBytes(limit + 1);

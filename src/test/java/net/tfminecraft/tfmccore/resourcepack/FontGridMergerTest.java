@@ -168,10 +168,10 @@ class FontGridMergerTest {
 
     @Test void boundsWhatItReadsAndHoldsInMemory() throws Exception {
         String shape = ",\"ascent\":7";
-        byte[] tile = png(new BufferedImage(1024, 1024, BufferedImage.TYPE_INT_ARGB));
+        byte[] tile = png(new BufferedImage(512, 512, BufferedImage.TYPE_INT_ARGB));
         Map<String, byte[]> files = new TreeMap<>();
         files.put("assets/minecraft/textures/font/tile.png", tile);
-        files.put("assets/minecraft/textures/font/huge.png", png(new BufferedImage(1025, 1024, BufferedImage.TYPE_INT_ARGB)));
+        files.put("assets/minecraft/textures/font/huge.png", png(new BufferedImage(513, 512, BufferedImage.TYPE_INT_ARGB)));
         byte[] padded = Arrays.copyOf(png(image(8, 8, 1)), 9 * 1024 * 1024); // inflates past the texture limit
         files.put("assets/minecraft/textures/font/padded.png", padded);
         List<String> tiles = new ArrayList<>();
@@ -189,7 +189,7 @@ class FontGridMergerTest {
         assertEquals(2, merged.size(), "only default.json and its one sheet");
         JsonArray providers = JsonParser.parseString(new String(merged.get("assets/minecraft/font/default.json"), StandardCharsets.UTF_8))
                 .getAsJsonObject().getAsJsonArray("providers");
-        assertEquals(2, providers.size(), "16 tiles fill the 16M-pixel budget; the 17th stays as it was");
+        assertEquals(2, providers.size(), "16 tiles fill a font's 4M-pixel budget; the 17th stays as it was");
         assertEquals(4, providers.get(0).getAsJsonObject().getAsJsonArray("chars").size());
         assertEquals(JsonParser.parseString(tiles.get(16)), providers.get(1));
     }
@@ -207,6 +207,23 @@ class FontGridMergerTest {
         assertEquals(15, merged.keySet().stream().filter(name -> name.endsWith(".json")).count(), "16 MiB holds 15 of the 1 MiB fonts");
         assertFalse(merged.containsKey("assets/f15/font/default.json"));
         assertFalse(merged.containsKey("assets/f16/font/default.json"));
+
+        // The room left after one 1 MiB font cannot take a sheet of noise; it is refused while encoding.
+        Map<String, byte[]> noisy = new TreeMap<>();
+        Random random = new Random(7);
+        List<String> providers = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            BufferedImage noise = new BufferedImage(512, 512, BufferedImage.TYPE_INT_ARGB);
+            for (int y = 0; y < 512; y++) for (int x = 0; x < 512; x++) noise.setRGB(x, y, random.nextInt());
+            noisy.put("assets/minecraft/textures/font/noise" + i + ".png", png(noise));
+            providers.add(bitmap("bitmap", "minecraft:font/noise" + i + ".png", String.format("\\u%04x", 0xe000 + i), ",\"ascent\":7"));
+        }
+        noisy.put("assets/b/font/default.json", font(providers.toArray(String[]::new)).getBytes(StandardCharsets.UTF_8));
+        for (int i = 0; i < 15; i++) noisy.put(String.format("assets/a%02d/font/default.json", i), files.get(String.format("assets/f%02d/font/default.json", i)));
+        noisy.put("assets/minecraft/textures/font/a.png", files.get("assets/minecraft/textures/font/a.png"));
+        Map<String, byte[]> refused = merge(noisy);
+        assertEquals(15, refused.keySet().stream().filter(name -> name.endsWith(".json")).count());
+        assertFalse(refused.containsKey("assets/b/font/default.json"));
     }
 
     @Test void decodesWhatTheClientDecodesAndRejectsTheRest() throws Exception {
