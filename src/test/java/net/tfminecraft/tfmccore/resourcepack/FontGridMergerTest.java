@@ -196,9 +196,9 @@ class FontGridMergerTest {
 
     @Test void decodesWhatTheClientDecodesAndRejectsTheRest() throws Exception {
         BufferedImage palette = FontGridMerger.decode(manual(1, 1, 8, 3, zlib(new byte[] {0, 0}),
-                chunk("PLTE", new byte[] {(byte) 255, 0, 0}), chunk("tRNS", new byte[] {(byte) 128}), chunk("tEXt", new byte[] {'a', 0, 'b'})));
+                chunk("PLTE", new byte[] {(byte) 255, 0, 0}), chunk("tRNS", new byte[] {(byte) 128}), chunk("tEXt", new byte[] {'a', 0, 'b'})), 1);
         assertEquals(0x80FF0000, palette.getRGB(0, 0));
-        assertEquals(0xFF010203, FontGridMerger.decode(manual(1, 1, 8, 2, zlib(new byte[] {0, 1, 2, 3}))).getRGB(0, 0));
+        assertEquals(0xFF010203, FontGridMerger.decode(manual(1, 1, 8, 2, zlib(new byte[] {0, 1, 2, 3})), 1).getRGB(0, 0));
 
         byte[] rgba = zlib(new byte[] {0, 1, 2, 3, 4});
         byte[] badLength = manual(1, 1, 8, 6, rgba);
@@ -217,8 +217,24 @@ class FontGridMergerTest {
             return out.toByteArray();
         };
         byte[] paletteData = zlib(new byte[] {0, 0});
+        ByteArrayOutputStream unfinished = new ByteArrayOutputStream();
+        DeflaterOutputStream open = new DeflaterOutputStream(unfinished, new Deflater(), true);
+        open.write(new byte[] {0, 1, 2, 3, 4});
+        open.flush(); // all the data, but no final block
+        assertNotNull(FontGridMerger.decode(manual(1, 1, 8, 6, rgba), 1), "the unmodified 1x1 image decodes");
+        assertNotNull(FontGridMerger.decode(manual(2, 2, 8, 6, zlib(new byte[18])), 4));
+        assertNull(FontGridMerger.decode(manual(2, 2, 8, 6, zlib(new byte[18])), 3), "over the pixel budget");
         for (byte[] rejected : List.of(
                 join.apply(new byte[][] {header, chunk("ABCD", new byte[0]), data, end}),
+                join.apply(new byte[][] {header, chunk("@BCD", new byte[0]), data, end}),
+                join.apply(new byte[][] {header, data}),
+                manual(1, 1, 8, 6, unfinished.toByteArray()),
+                manual(1, 1, 8, 6, zlibHeader(rgba, 0x78, 0x9D)), // check bits wrong
+                manual(1, 1, 8, 6, zlibHeader(rgba, 0x78, 0x20)), // preset dictionary
+                manual(1, 1, 8, 6, zlibHeader(rgba, 0x79, 0x18)), // not deflate
+                manual(1, 1, 8, 3, paletteData, chunk("PLTE", new byte[0])),
+                manual(1, 1, 8, 3, zlib(new byte[] {0, 5}), plte),
+                manual(1, 1, 1, 3, zlib(new byte[] {0, (byte) 0x80}), plte),
                 join.apply(new byte[][] {data, header, end}),
                 join.apply(new byte[][] {header, header, data, end}),
                 join.apply(new byte[][] {header, data, chunk("tRNS", new byte[1]), end}),
@@ -246,8 +262,16 @@ class FontGridMergerTest {
                 manual(1, 1, 8, 6, new byte[] {0x78, (byte) 0x9C, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF}),
                 manual(1, 1, 8, 6, zlib(new byte[1 << 20])),
                 manual(1, 1, 8, 6, zlib(new byte[] {0})))) {
-            assertNull(FontGridMerger.decode(rejected));
+            assertNull(FontGridMerger.decode(rejected, Long.MAX_VALUE));
         }
+    }
+
+    /** A valid zlib stream with its two header bytes replaced. */
+    private static byte[] zlibHeader(byte[] stream, int cmf, int flg) {
+        byte[] copy = stream.clone();
+        copy[0] = (byte) cmf;
+        copy[1] = (byte) flg;
+        return copy;
     }
 
     /** A 1x1 RGBA PNG with one IHDR field (10 compression, 11 filter, 12 interlace) changed. */

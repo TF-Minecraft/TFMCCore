@@ -145,11 +145,9 @@ final class FontGridMerger {
         ZipEntry entry = zip.getEntry(texture);
         if (entry == null) return null; // Vanilla textures are not in the pack.
         byte[] png = read(zip, entry, MAX_TEXTURE_BYTES);
-        BufferedImage image = png == null ? null : decode(png);
+        BufferedImage image = png == null ? null : decode(png, Math.min(MAX_GLYPH_PIXELS, MAX_HELD_PIXELS - held[0]));
         if (image == null) return null;
-        long pixels = (long) image.getWidth() * image.getHeight();
-        if (pixels > MAX_GLYPH_PIXELS || held[0] + pixels > MAX_HELD_PIXELS) return null;
-        held[0] += pixels;
+        held[0] += (long) image.getWidth() * image.getHeight();
         return new Glyph(points[0], image, element);
     }
 
@@ -166,11 +164,13 @@ final class FontGridMerger {
      * CRCs and the zlib checksum, which the client ignores, so the image data is inflated raw and
      * rebuilt first. Other formats, and anything stb_image would reject (unknown critical chunks,
      * misplaced chunks, bad palettes, non-standard header fields), return null and stay unmerged.
+     * Images over {@code maxPixels} are refused from their header, before anything is inflated.
      */
-    static BufferedImage decode(byte[] png) throws IOException {
+    static BufferedImage decode(byte[] png, long maxPixels) throws IOException {
         if (png.length < 33 || ByteBuffer.wrap(png).getLong() != 0x89504E470D0A1A0AL) return null;
         ByteArrayOutputStream idat = new ByteArrayOutputStream();
         byte[] header = null, palette = null, transparency = null;
+        boolean ended = false;
         ByteBuffer chunks = ByteBuffer.wrap(png);
         for (int at = 8; at + 12 <= png.length;) {
             int length = chunks.getInt(at);
@@ -186,36 +186,43 @@ final class FontGridMerger {
                     transparency = body;
                 }
                 case "IDAT" -> idat.write(body);
-                case "IEND" -> { }
-                default -> { if (Character.isUpperCase(type.charAt(0))) return null; } // Unknown critical chunk.
+                case "IEND" -> ended = true;
+                default -> { if ((png[at + 4] & 0x20) == 0) return null; } // Unknown critical chunk.
             }
-            if (type.equals("IEND")) break;
+            if (ended) break;
             at += 12 + length;
         }
-        if (header == null || header.length != 13 || idat.size() < 2) return null;
+        if (!ended || header.length != 13 || idat.size() < 2) return null;
         int width = ByteBuffer.wrap(header).getInt(0), height = ByteBuffer.wrap(header).getInt(4);
         int depth = header[8], colour = header[9];
-        boolean supported = colour == 3 ? depth <= 8 && palette != null && palette.length % 3 == 0 && palette.length <= 768
+        boolean supported = colour == 3 ? depth <= 8 && palette != null && palette.length > 0 && palette.length % 3 == 0 && palette.length <= 768
                         && (transparency == null || transparency.length <= palette.length / 3)
                 : depth == 8 && (colour == 6 || colour == 2 && transparency == null);
         boolean standard = header[10] == 0 && header[11] == 0 && (header[12] == 0 || header[12] == 1);
-        if (!supported || !standard || width < 1 || height < 1 || width > MAX_SHEET || height > MAX_SHEET) return null;
-        // Raw inflate skips the two-byte zlib header and never checks the trailing Adler-32.
+        if (!supported || !standard || width < 1 || height < 1 || width > MAX_SHEET || height > MAX_SHEET
+                || (long) width * height > maxPixels) return null;
+        // stb checks the zlib header (deflate, no preset dictionary) but not the trailing Adler-32,
+        // so check the header here and inflate raw after it.
+        byte[] data = idat.toByteArray();
+        int cmf = data[0] & 0xFF, flg = data[1] & 0xFF;
+        if ((cmf * 256 + flg) % 31 != 0 || (cmf & 0x0F) != 8 || (flg & 0x20) != 0) return null;
         Inflater inflater = new Inflater(true);
+        boolean finished;
         ByteArrayOutputStream raw = new ByteArrayOutputStream();
         long limit = 2L * height * (1 + 4L * width) + 1024;
         try {
-            byte[] data = idat.toByteArray(), buffer = new byte[65536];
+            byte[] buffer = new byte[65536];
             inflater.setInput(data, 2, data.length - 2);
             while (!inflater.finished() && !inflater.needsInput() && raw.size() <= limit) {
                 raw.write(buffer, 0, inflater.inflate(buffer));
             }
+            finished = inflater.finished(); // stb rejects a stream that stops before its final block.
         } catch (DataFormatException corrupt) {
             return null;
         } finally {
             inflater.end();
         }
-        if (raw.size() > limit) return null;
+        if (raw.size() > limit || !finished) return null;
         ByteArrayOutputStream rebuilt = new ByteArrayOutputStream();
         rebuilt.write(png, 0, 8);
         chunk(rebuilt, "IHDR", header);
@@ -227,12 +234,21 @@ final class FontGridMerger {
         deflater.end();
         chunk(rebuilt, "IDAT", compressed.toByteArray());
         chunk(rebuilt, "IEND", new byte[0]);
+        BufferedImage image;
         try {
             // Memory cache: ImageIO's default stream cache writes temporary files. ImageIO.read closes it.
-            return ImageIO.read(new MemoryCacheImageInputStream(new ByteArrayInputStream(rebuilt.toByteArray())));
+            image = ImageIO.read(new MemoryCacheImageInputStream(new ByteArrayInputStream(rebuilt.toByteArray())));
         } catch (IOException | RuntimeException unreadable) {
             return null;
         }
+        if (colour == 3) {
+            // stb reads whatever lies past the palette for an out-of-range index; ImageIO reads black.
+            int entries = palette.length / 3;
+            for (int index : image.getRaster().getSamples(0, 0, width, height, 0, (int[]) null)) {
+                if (index >= entries) return null;
+            }
+        }
+        return image;
     }
 
     private static void chunk(ByteArrayOutputStream out, String type, byte[] body) {
