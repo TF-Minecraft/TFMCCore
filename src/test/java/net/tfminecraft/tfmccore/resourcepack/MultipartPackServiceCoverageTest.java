@@ -251,7 +251,7 @@ class MultipartPackServiceCoverageTest {
     assertTrue(service.loading(playerId));
     emit(first, first.packs().get(2).id(), ResourcePackStatus.SUCCESSFULLY_LOADED);
     assertFalse(service.loading(playerId));
-    verify(player).sendMessage(Component.text("TFMC resource pack loaded."));
+    verify(player, never()).sendMessage(any(Component.class));
     assertTrue(service.sendPublished(player, sourceHash, false, null, fallback));
     emit(first, first.packs().getFirst().id(), ResourcePackStatus.FAILED_DOWNLOAD);
     timeouts.getFirst().run();
@@ -811,7 +811,6 @@ class MultipartPackServiceCoverageTest {
     complete(manual);
     timeouts.getFirst().run();
     assertEquals(List.of(), results, "The manual request's answers and deadline are stale");
-    verify(player, never()).sendMessage(Component.text("TFMC resource pack loaded."));
     complete(required);
     assertEquals(List.of(true), results);
   }
