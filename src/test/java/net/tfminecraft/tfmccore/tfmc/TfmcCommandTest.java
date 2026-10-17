@@ -93,6 +93,48 @@ class TfmcCommandTest {
     }
 
     @Test
+    void conditionalEventsPathsParseAndCompleteWithoutRunningCoreActions() throws Exception {
+        String yaml = Files.readString(Path.of("src/main/resources/tfmc.yml"));
+        config.loadFromString(yaml.replace("commands: []", "commands: [kit iron remove, kit iron, archaeology clear, masks clear, ban, pack, promote, roll strength, 'roll <args>']"));
+        dispatcher = new CommandDispatcher<>();
+        dispatcher.getRoot().addChild(command.build());
+
+        TestPlayer steve = player("Steve");
+        assertTrue(visible(steve).contains("kit"));
+        assertFalse(visible(steve).contains("ban"));
+        assertFalse(visible(steve).contains("promote"));
+        assertEquals(List.of("iron"), visible(steve, "kit"));
+        assertEquals(List.of("remove"), visible(steve, "kit", "iron"));
+        run(steve, "tfmc kit iron");
+        run(steve, "tfmc kit iron remove");
+        run(steve, "tfmc archaeology clear");
+        run(steve, "tfmc masks clear");
+        run(steve, "tfmc roll 20 +3");
+        run(steve, "tfmc roll strength");
+        assertTrue(console.isEmpty());
+        assertTrue(given.isEmpty());
+        assertTrue(steve.messages.isEmpty());
+        run(steve, "tfmc pack");
+        assertEquals(1, packsSent);
+        assertThrows(CommandSyntaxException.class, () -> run(steve, "tfmc kit gold"));
+    }
+
+    @Test
+    void invalidConditionalEventsPathsAreSkipped() throws Exception {
+        String yaml = Files.readString(Path.of("src/main/resources/tfmc.yml"));
+        config.loadFromString(yaml.replace("commands: []", "commands: ['Kit Iron', 'kit  iron', '<args>', calendar]"));
+        dispatcher = new CommandDispatcher<>();
+        dispatcher.getRoot().addChild(command.build());
+
+        TestPlayer steve = player("Steve");
+        assertTrue(visible(steve).contains("calendar"));
+        assertFalse(visible(steve).contains("kit"));
+        assertFalse(visible(steve).contains("args"));
+        run(steve, "tfmc calendar");
+        assertTrue(steve.messages.isEmpty());
+    }
+
+    @Test
     void playersSeeOnlyPublicSubcommands() {
         assertEquals(List.of("tips", "pack", "booster", "drinks", "patreon", "statues", "patterns", "masks", "map", "date", "poster"),
                 visible(player("Steve")));
