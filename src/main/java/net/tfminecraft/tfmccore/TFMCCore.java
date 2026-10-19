@@ -13,6 +13,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 
 import net.tfminecraft.tlibs.database.SqliteProvider;
+import net.tfminecraft.tfmccore.books.BookCopyUnblocker;
 import net.tfminecraft.tfmccore.books.BookGlintHider;
 import net.tfminecraft.tfmccore.commands.CoreCommands;
 import net.tfminecraft.tfmccore.commands.CoreTabCompletion;
@@ -76,6 +77,7 @@ public class TFMCCore extends JavaPlugin{
     private net.tfminecraft.tfmccore.resourcepack.MultipartPackService multipartPacks;
     private net.tfminecraft.tfmccore.resourcepack.PackTextureGuard textureGuard;
     private net.tfminecraft.tfmccore.resourcepack.RequiredPackGate requiredPacks;
+    private BookCopyUnblocker bookCopies;
 
     @Override
     public void onEnable() {
@@ -181,6 +183,7 @@ public class TFMCCore extends JavaPlugin{
         if (requiredPacks != null) requiredPacks.close();
         if (multipartPacks != null) multipartPacks.close();
         if (textureGuard != null) textureGuard.close();
+        if (bookCopies != null) bookCopies.unwrap();
         if (stoneListener != null) {
             stoneListener.refundAll();
         }
@@ -329,6 +332,7 @@ public class TFMCCore extends JavaPlugin{
         // Covers a plugin reload; on a normal start nobody is online yet
         getServer().getOnlinePlayers().forEach(XaeroFairPlayListener::send);
         BookGlintHider.register(this);
+        bookCopies = BookCopyUnblocker.register(this);
     }
 
     public void createConfigs() {
