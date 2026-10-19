@@ -101,9 +101,8 @@ class BookCopyUnblockerTest {
   @Test
   void keepsAnOtherPluginsCancelThatComesAfterMmoItemsInTheSameSlot() {
     mmoItemsCancels(handlers);
-    unblocker(handlers).wrap();
-    // Registered after wrapping, so it runs after the wrapped MMOItems handler.
     otherCancels(handlers, EventPriority.NORMAL);
+    unblocker(handlers).wrap();
 
     CraftItemEvent event = craft(bookCloning());
     dispatch(event);
@@ -176,6 +175,33 @@ class BookCopyUnblockerTest {
 
     // After a TFMCCore reload the original is found and wrapped again.
     assertEquals(1, unblocker(handlers).wrap());
+  }
+
+  @Test
+  void wrapAndUnwrapKeepEveryListenersPlace() {
+    otherCancels(handlers, EventPriority.LOW);
+    otherCancels(handlers, EventPriority.NORMAL);
+    mmoItemsCancels(handlers);
+    otherCancels(handlers, EventPriority.NORMAL);
+    otherCancels(handlers, EventPriority.NORMAL);
+    otherCancels(handlers, EventPriority.HIGH);
+    RegisteredListener[] before = handlers.getRegisteredListeners();
+    BookCopyUnblocker unblocker = unblocker(handlers);
+
+    unblocker.wrap();
+    RegisteredListener[] wrapped = handlers.getRegisteredListeners();
+    assertEquals(before.length, wrapped.length);
+    for (int i = 0; i < before.length; i++) {
+      if (i == 2) {
+        assertNotSame(before[i], wrapped[i]);
+        assertSame(disable, wrapped[i].getListener());
+      } else {
+        assertSame(before[i], wrapped[i], "position " + i);
+      }
+    }
+
+    unblocker.unwrap();
+    assertArrayEquals(before, handlers.getRegisteredListeners());
   }
 
   @Test

@@ -70,12 +70,31 @@ public final class BookCopyUnblocker implements Listener {
             if (original instanceof Wrapped
                     || !original.getListener().getClass().getName().equals(MMOITEMS_LISTENER)) continue;
             Wrapped wrapper = new Wrapped(original);
-            handlers.unregister(original);
-            handlers.register(wrapper);
+            replace(original, wrapper);
             wrapped.add(wrapper);
             count++;
         }
         return count;
+    }
+
+    /**
+     * Swaps one registration for another in the same place. HandlerList only appends, so the
+     * listeners after it in its priority slot are taken out and added back behind the replacement.
+     */
+    private void replace(RegisteredListener old, RegisteredListener replacement) {
+        List<RegisteredListener> later = new ArrayList<>();
+        boolean found = false;
+        for (RegisteredListener registered : handlers.getRegisteredListeners()) {
+            if (registered == old) {
+                found = true;
+            } else if (found && registered.getPriority() == old.getPriority()) {
+                later.add(registered);
+            }
+        }
+        handlers.unregister(old);
+        later.forEach(handlers::unregister);
+        handlers.register(replacement);
+        later.forEach(handlers::register);
     }
 
     /** Puts MMOItems' own registrations back, so a TFMCCore disable or reload leaves nothing of ours behind. */
@@ -84,8 +103,7 @@ public final class BookCopyUnblocker implements Listener {
         for (Wrapped wrapper : wrapped) {
             // Gone when MMOItems was disabled meanwhile; its original must not come back then
             if (!current.contains(wrapper)) continue;
-            handlers.unregister(wrapper);
-            handlers.register(wrapper.original);
+            replace(wrapper, wrapper.original);
         }
         wrapped.clear();
     }
