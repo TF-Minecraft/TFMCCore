@@ -18,6 +18,7 @@ import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.server.PluginEnableEvent;
 import org.bukkit.inventory.ComplexRecipe;
 import org.bukkit.inventory.CraftingInventory;
 import org.bukkit.inventory.InventoryView;
@@ -26,11 +27,9 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.RegisteredListener;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitScheduler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 class BookCopyUnblockerTest {
 
@@ -58,7 +57,7 @@ class BookCopyUnblockerTest {
   @Test
   void undoesTheBookCopyCancelMadeByMmoItems() {
     mmoItemsCancels(handlers);
-    assertEquals(1, BookCopyUnblocker.wrap(handlers));
+    assertEquals(1, unblocker(handlers).wrap());
 
     CraftItemEvent event = craft(bookCloning());
     dispatch(event);
@@ -69,7 +68,7 @@ class BookCopyUnblockerTest {
   @Test
   void keepsWhatTheWrappedRegistrationLooksLike() {
     mmoItemsCancels(handlers);
-    BookCopyUnblocker.wrap(handlers);
+    unblocker(handlers).wrap();
 
     RegisteredListener wrapped = handlers.getRegisteredListeners()[0];
     assertEquals(1, handlers.getRegisteredListeners().length);
@@ -88,7 +87,7 @@ class BookCopyUnblockerTest {
       if (priority == EventPriority.NORMAL) otherCancels(list, priority);
       mmoItemsCancels(list);
       otherCancels(list, priority);
-      BookCopyUnblocker.wrap(list);
+      unblocker(list).wrap();
 
       CraftItemEvent event = craft(bookCloning());
       for (RegisteredListener registered : list.getRegisteredListeners()) call(registered, event);
@@ -102,7 +101,7 @@ class BookCopyUnblockerTest {
   @Test
   void keepsAnOtherPluginsCancelThatComesAfterMmoItemsInTheSameSlot() {
     mmoItemsCancels(handlers);
-    BookCopyUnblocker.wrap(handlers);
+    unblocker(handlers).wrap();
     // Registered after wrapping, so it runs after the wrapped MMOItems handler.
     otherCancels(handlers, EventPriority.NORMAL);
 
@@ -115,7 +114,7 @@ class BookCopyUnblockerTest {
   @Test
   void leavesOtherRecipesAndClicksCancelled() {
     mmoItemsCancels(handlers);
-    BookCopyUnblocker.wrap(handlers);
+    unblocker(handlers).wrap();
     ComplexRecipe map = mock(ComplexRecipe.class);
     when(map.getKey()).thenReturn(NamespacedKey.minecraft("map_cloning"));
 
@@ -136,14 +135,14 @@ class BookCopyUnblockerTest {
     RegisteredListener allows =
         new RegisteredListener(disable, (l, e) -> {}, EventPriority.NORMAL, mmoItems, false);
     handlers.register(allows);
-    BookCopyUnblocker.wrap(handlers);
+    unblocker(handlers).wrap();
     CraftItemEvent allowed = craft(bookCloning());
     dispatch(allowed);
     assertFalse(allowed.isCancelled());
 
     handlers.unregisterAll(mmoItems);
     mmoItemsCancels(handlers);
-    BookCopyUnblocker.wrap(handlers);
+    unblocker(handlers).wrap();
     Cache.allowBookCopies = false;
     CraftItemEvent off = craft(bookCloning());
     dispatch(off);
@@ -155,35 +154,98 @@ class BookCopyUnblockerTest {
     handlers.register(
         new RegisteredListener(new Listener() {}, (l, e) -> {}, EventPriority.NORMAL, other, false));
 
-    assertEquals(0, BookCopyUnblocker.wrap(handlers));
+    assertEquals(0, unblocker(handlers).wrap());
   }
 
   @Test
-  void registersOneTickLaterWhenMmoItemsIsEnabled() {
-    JavaPlugin plugin = mock(JavaPlugin.class);
-    Server server = mock(Server.class);
-    PluginManager plugins = mock(PluginManager.class);
-    BukkitScheduler scheduler = mock(BukkitScheduler.class);
+  void neverWrapsAWrapperAndUnwrapRestoresMmoItemsOwnRegistration() {
+    mmoItemsCancels(handlers);
+    RegisteredListener original = handlers.getRegisteredListeners()[0];
+    BookCopyUnblocker unblocker = unblocker(handlers);
+
+    assertEquals(1, unblocker.wrap());
+    assertEquals(0, unblocker.wrap());
+    assertEquals(1, handlers.getRegisteredListeners().length);
+    assertNotSame(original, handlers.getRegisteredListeners()[0]);
+
+    unblocker.unwrap();
+    assertArrayEquals(new RegisteredListener[] {original}, handlers.getRegisteredListeners());
+    CraftItemEvent event = craft(bookCloning());
+    dispatch(event);
+    assertTrue(event.isCancelled());
+
+    // After a TFMCCore reload the original is found and wrapped again.
+    assertEquals(1, unblocker(handlers).wrap());
+  }
+
+  @Test
+  void unwrapLeavesOutHandlersOfADisabledMmoItems() {
+    mmoItemsCancels(handlers);
+    BookCopyUnblocker unblocker = unblocker(handlers);
+    unblocker.wrap();
+    handlers.unregisterAll(mmoItems);
+
+    unblocker.unwrap();
+
+    assertEquals(0, handlers.getRegisteredListeners().length);
+  }
+
+  @Test
+  void wrapsWhenMmoItemsEnablesLater() {
     Logger logger = mock(Logger.class);
-    when(plugin.getServer()).thenReturn(server);
-    when(plugin.getLogger()).thenReturn(logger);
-    when(server.getPluginManager()).thenReturn(plugins);
-    when(server.getScheduler()).thenReturn(scheduler);
+    BookCopyUnblocker unblocker = new BookCopyUnblocker(plugin(logger, mock(PluginManager.class)), handlers);
+    when(other.getName()).thenReturn("Other");
+    when(mmoItems.getName()).thenReturn("MMOItems");
 
-    BookCopyUnblocker.register(plugin);
-    ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
-    verify(scheduler).runTask(eq(plugin), task.capture());
+    unblocker.onPluginEnable(enabled(other));
+    verifyNoInteractions(logger);
 
-    task.getValue().run();
+    mmoItemsCancels(handlers);
+    unblocker.onPluginEnable(enabled(mmoItems));
+    verify(logger).info("Book copies: wrapped 1 MMOItems click handlers");
+
+    // Nothing new to wrap: no second line, and no warning.
+    unblocker.onPluginEnable(enabled(mmoItems));
+    verify(logger).info(anyString());
+    verify(logger, never()).warning(anyString());
+  }
+
+  @Test
+  void registersItsListenerAndWrapsWhenMmoItemsIsAlreadyEnabled() {
+    Logger logger = mock(Logger.class);
+    PluginManager plugins = mock(PluginManager.class);
+    JavaPlugin plugin = plugin(logger, plugins);
+
+    BookCopyUnblocker first = BookCopyUnblocker.register(plugin);
+    verify(plugins).registerEvents(first, plugin);
     verifyNoInteractions(logger);
 
     when(plugins.isPluginEnabled("MMOItems")).thenReturn(true);
-    task.getValue().run();
+    BookCopyUnblocker.register(plugin);
     verify(logger).warning("MMOItems craft handler not found; book copies stay blocked");
 
     mmoItemsCancels(InventoryClickEvent.getHandlerList());
-    task.getValue().run();
+    BookCopyUnblocker.register(plugin).unwrap();
     verify(logger).info("Book copies: wrapped 1 MMOItems click handlers");
+  }
+
+  private static JavaPlugin plugin(Logger logger, PluginManager plugins) {
+    JavaPlugin plugin = mock(JavaPlugin.class);
+    Server server = mock(Server.class);
+    when(plugin.getServer()).thenReturn(server);
+    when(plugin.getLogger()).thenReturn(logger);
+    when(server.getPluginManager()).thenReturn(plugins);
+    return plugin;
+  }
+
+  private static PluginEnableEvent enabled(Plugin plugin) {
+    PluginEnableEvent event = mock(PluginEnableEvent.class);
+    when(event.getPlugin()).thenReturn(plugin);
+    return event;
+  }
+
+  private static BookCopyUnblocker unblocker(HandlerList list) {
+    return new BookCopyUnblocker(mock(JavaPlugin.class), list);
   }
 
   private void mmoItemsCancels(HandlerList list) {
