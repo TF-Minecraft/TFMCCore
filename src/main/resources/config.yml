@@ -27,6 +27,9 @@ xaero-fair-play: true
 # Hide the enchantment glint on signed books (letters and book skins too). Only changes
 # what players see; needs ProtocolLib. After a reload, items update as they are resent.
 hide-book-glint: true
+# Let written books be copied with a Book and Quill at a crafting table. MMOItems
+# otherwise blocks the vanilla recipe, because every Book and Quill is a disable-crafting MMOItem.
+allow-book-copies: true
 
 drops-debug: true
 

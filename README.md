@@ -15,6 +15,7 @@ These features give other TF-Minecraft plugins common building blocks while also
 - **Resource-pack texture guard** — warns the console and staff when the ItemsAdder pack holds a texture over 16384 px, which stops the whole pack loading on most Intel graphics.
 - **Required pack on join** — opt-in (`resource-pack.require-on-join`); sends the pack as required and publishes `tfmccore:required-pack` player metadata (`loading`, `ready`, `failed`) for RPCharacters. Staff retry a failed load with `/tcore packretry <player>`.
 - **Book appearance** — optionally hides the default glint on signed books through ProtocolLib.
+- **Book copies** — written books can be copied with a Book and Quill at a crafting table, even though MMOItems blocks vanilla recipes that use a disable-crafting MMOItem (`allow-book-copies`).
 - **Cross-plugin statistics** — records supported vehicle, character, crafting, skill, and faction events for staff queries.
 
 TFMC Core works alongside the server's specialist plugins, connecting their systems with the smaller details that make the roleplay world feel consistent.

@@ -18,6 +18,7 @@ public class Cache {
     public static boolean xaeroFairPlay = true;
     // Read from packet threads
     public static volatile boolean hideBookGlint = true;
+    public static boolean allowBookCopies = true;
 
     public static int armourTime = 7;
 
