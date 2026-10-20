@@ -16,6 +16,7 @@ import com.comphenix.protocol.wrappers.Pair;
 import com.comphenix.protocol.wrappers.WrappedDataValue;
 import com.comphenix.protocol.wrappers.WrappedDataWatcher;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Logger;
 import net.tfminecraft.tfmccore.cache.Cache;
 import org.bukkit.Bukkit;
@@ -89,12 +90,11 @@ class BookGlintHiderTest {
       BookGlintHider.register(plugin);
 
       verify(manager).addPacketListener(any(BookGlintHider.class));
-      assertTrue(hider.getSendingWhitelist().getTypes().contains(PacketType.Play.Server.WINDOW_ITEMS));
-      assertTrue(
-          hider
-              .getReceivingWhitelist()
-              .getTypes()
-              .contains(PacketType.Play.Client.SET_CREATIVE_SLOT));
+      // Inventory packets carry stacks the client hashes back on click; never touch them
+      assertEquals(
+          Set.of(PacketType.Play.Server.ENTITY_EQUIPMENT, PacketType.Play.Server.ENTITY_METADATA),
+          hider.getSendingWhitelist().getTypes());
+      assertTrue(hider.getReceivingWhitelist().getTypes().isEmpty());
     }
   }
 
@@ -119,76 +119,13 @@ class BookGlintHiderTest {
   }
 
   @Test
-  void restoreDropsOnlyAHiddenGlintFromSignedBooks() {
-    assertNull(BookGlintHider.restore(null));
-    assertNull(BookGlintHider.restore(stack(Material.WRITABLE_BOOK, mock(ItemMeta.class))));
-    assertNull(BookGlintHider.restore(stack(Material.WRITTEN_BOOK, null)));
-    assertNull(BookGlintHider.restore(stack(Material.WRITTEN_BOOK, mock(ItemMeta.class))));
-    assertNull(BookGlintHider.restore(stack(Material.WRITTEN_BOOK, glint(true))));
-
-    ItemMeta meta = glint(false);
-    ItemStack book = stack(Material.WRITTEN_BOOK, meta);
-    ItemStack copy = book.clone();
-
-    assertSame(copy, BookGlintHider.restore(book));
-
-    verify(meta).setEnchantmentGlintOverride(null);
-    verify(copy).setItemMeta(meta);
-    verify(book, never()).setItemMeta(any());
-  }
-
-  @Test
   void disabledOptionLeavesSentPacketsAlone() {
     Cache.hideBookGlint = false;
-    PacketEvent event = event(PacketType.Play.Server.SET_SLOT);
+    PacketEvent event = event(PacketType.Play.Server.ENTITY_EQUIPMENT);
 
     hider.onPacketSending(event);
 
     verify(event, never()).getPacket();
-  }
-
-  @Test
-  void singleItemPacketsSendTheHiddenCopy() {
-    PacketEvent event = event(PacketType.Play.Server.SET_SLOT);
-    StructureModifier<ItemStack> items = items(event.getPacket(), book());
-
-    hider.onPacketSending(event);
-
-    verify(items).write(eq(0), argThat(this::hidden));
-
-    PacketEvent other = event(PacketType.Play.Server.SET_CURSOR_ITEM);
-    StructureModifier<ItemStack> unchanged = items(other.getPacket(), plain());
-
-    hider.onPacketSending(other);
-
-    verify(unchanged, never()).write(anyInt(), any());
-  }
-
-  @Test
-  @SuppressWarnings("unchecked")
-  void windowItemsHideBooksInTheListAndOnTheCursor() {
-    PacketEvent event = event(PacketType.Play.Server.WINDOW_ITEMS);
-    PacketContainer packet = event.getPacket();
-    ItemStack other = plain();
-    StructureModifier<List<ItemStack>> lists = mock(StructureModifier.class);
-    when(packet.getItemListModifier()).thenReturn(lists);
-    ItemStack book = book();
-    when(lists.read(0)).thenReturn(List.of(book, other));
-    StructureModifier<ItemStack> cursor = items(packet, book());
-
-    hider.onPacketSending(event);
-
-    verify(lists).write(eq(0), argThat(list -> hidden(list.get(0)) && list.get(1) == other));
-    verify(cursor).write(eq(0), argThat(this::hidden));
-
-    when(lists.read(0)).thenReturn(List.of(other));
-    when(cursor.read(0)).thenReturn(other);
-    clearInvocations(lists, cursor);
-
-    hider.onPacketSending(event);
-
-    verify(lists, never()).write(anyInt(), any());
-    verify(cursor, never()).write(anyInt(), any());
   }
 
   @Test
@@ -256,28 +193,6 @@ class BookGlintHiderTest {
     }
   }
 
-  @Test
-  void creativeSlotsSaveBooksWithoutTheHiddenGlint() {
-    Cache.hideBookGlint = false;
-    PacketEvent event = event(PacketType.Play.Client.SET_CREATIVE_SLOT);
-    ItemMeta meta = glint(false);
-    ItemStack book = stack(Material.WRITTEN_BOOK, meta);
-    StructureModifier<ItemStack> items = items(event.getPacket(), book);
-
-    hider.onPacketReceiving(event);
-
-    verify(items).write(0, book.clone());
-    verify(meta).setEnchantmentGlintOverride(null);
-
-    ItemStack stone = plain();
-    when(items.read(0)).thenReturn(stone);
-    clearInvocations(items);
-
-    hider.onPacketReceiving(event);
-
-    verify(items, never()).write(anyInt(), any());
-  }
-
   private boolean hidden(ItemStack item) {
     return item != null && item.getItemMeta() == HIDDEN;
   }
@@ -309,13 +224,6 @@ class BookGlintHiderTest {
     return item;
   }
 
-  private static ItemMeta glint(boolean value) {
-    ItemMeta meta = mock(ItemMeta.class);
-    when(meta.hasEnchantmentGlintOverride()).thenReturn(true);
-    when(meta.getEnchantmentGlintOverride()).thenReturn(value);
-    return meta;
-  }
-
   private static WrappedDataValue value(
       int index, WrappedDataWatcher.Serializer serializer, Object value) {
     WrappedDataValue wrapped = mock(WrappedDataValue.class);
@@ -331,13 +239,5 @@ class BookGlintHiderTest {
     when(event.getPacket()).thenReturn(packet);
     when(event.getPacketType()).thenReturn(type);
     return event;
-  }
-
-  @SuppressWarnings("unchecked")
-  private static StructureModifier<ItemStack> items(PacketContainer packet, ItemStack item) {
-    StructureModifier<ItemStack> items = mock(StructureModifier.class);
-    when(packet.getItemModifier()).thenReturn(items);
-    when(items.read(0)).thenReturn(item);
-    return items;
   }
 }
