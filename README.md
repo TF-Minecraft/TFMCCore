@@ -14,7 +14,7 @@ These features give other TF-Minecraft plugins common building blocks while also
 - **Player utilities** — shared player commands and resource-pack delivery support everyday server use.
 - **Resource-pack texture guard** — warns the console and staff when the ItemsAdder pack holds a texture over 16384 px, which stops the whole pack loading on most Intel graphics.
 - **Required pack on join** — opt-in (`resource-pack.require-on-join`); sends the pack as required and publishes `tfmccore:required-pack` player metadata (`loading`, `ready`, `failed`) for RPCharacters. Staff retry a failed load with `/tcore packretry <player>`.
-- **Book appearance** — optionally hides the default glint on signed books through ProtocolLib.
+- **Book appearance** — optionally hides the default glint on signed books by storing a glint override on the books (`hide-book-glint`).
 - **Book copies** — written books can be copied with a Book and Quill at a crafting table, even though MMOItems blocks vanilla recipes that use a disable-crafting MMOItem (`allow-book-copies`).
 - **Cross-plugin statistics** — records supported vehicle, character, crafting, skill, and faction events for staff queries.
 

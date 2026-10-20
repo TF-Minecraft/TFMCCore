@@ -55,6 +55,7 @@ import net.tfminecraft.tfmccore.stats.categories.skills.SkillsStatConfig;
 import net.tfminecraft.tfmccore.stats.categories.vehicles.VehiclesStatConfig;
 import net.tfminecraft.tfmccore.stones.LorestoneConfigLoader;
 import net.tfminecraft.tfmccore.books.BookCopyUnblocker;
+import net.tfminecraft.tfmccore.books.BookGlintStamper;
 import net.tfminecraft.tfmccore.stones.StoneItems;
 import net.tfminecraft.tfmccore.stones.StoneListener;
 import net.tfminecraft.tfmccore.testsupport.TestRegistryAccess;
@@ -294,8 +295,9 @@ class PluginLifecycleCoverageTest {
       verify(rig.coreCommand).setTabCompleter(rig.tabCompletion);
       verify(rig.silentCommand).setExecutor(any(SilentPermissionCommand.class));
       verify(rig.silentCommand).setTabCompleter(any(SilentPermissionCommand.class));
-      assertEquals(10, rig.listeners.size());
+      assertEquals(11, rig.listeners.size());
       assertTrue(rig.listeners.stream().anyMatch(BookCopyUnblocker.class::isInstance));
+      assertTrue(rig.listeners.stream().anyMatch(BookGlintStamper.class::isInstance));
       assertTrue(rig.listeners.contains(rig.whistles.constructed().getFirst()));
       assertTrue(rig.listeners.contains(rig.stones.constructed().getFirst()));
       assertSame(rig.stones.constructed().getFirst(), TFMCCore.getStoneListener());

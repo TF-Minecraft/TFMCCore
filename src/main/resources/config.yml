@@ -24,8 +24,10 @@ horse-archery: false
 prevent-golem-scrape: true
 # Send Xaero's Minimap fair-play code (no entity radar or cave mode) on every join.
 xaero-fair-play: true
-# Hide the enchantment glint on signed books (letters and book skins too). Only changes
-# what players see; needs ProtocolLib. After a reload, items update as they are resent.
+# Hide the enchantment glint on signed books (letters and book skins too). Books are
+# updated within a second in player inventories and when their container is opened.
+# Updated books are tagged, so false brings back the glint on those the same way.
+# ProtocolLib hides it on books not yet updated in item frames or on the ground.
 hide-book-glint: true
 # Let written books be copied with a Book and Quill at a crafting table. MMOItems
 # otherwise blocks the vanilla recipe, because every Book and Quill is a disable-crafting MMOItem.
