@@ -31,6 +31,9 @@ public interface TfmcActions {
 
     void sendResourcePack(Player player);
 
+    /** True when the join gate sends the required pack to every player (resource-pack.require-on-join). */
+    boolean packRequiredOnJoin();
+
     void broadcast(Component message);
 
     /** Gives one of each item, dropping anything that does not fit at the player's feet. */

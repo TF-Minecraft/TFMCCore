@@ -66,6 +66,11 @@ public final class BukkitTfmcActions implements TfmcActions {
     }
 
     @Override
+    public boolean packRequiredOnJoin() {
+        return plugin.packRequiredOnJoin();
+    }
+
+    @Override
     public void broadcast(Component message) {
         Bukkit.getServer().sendMessage(message);
     }

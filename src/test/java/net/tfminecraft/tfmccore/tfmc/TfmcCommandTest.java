@@ -64,6 +64,7 @@ class TfmcCommandTest {
     private RuntimeException trackFailure;
     private final List<Runnable> mainThread = new ArrayList<>();
     private int packsSent;
+    private boolean packRequired;
     private long clock = NOW.toEpochMilli();
 
     private CommandDispatcher<CommandSourceStack> dispatcher;
@@ -257,8 +258,24 @@ class TfmcCommandTest {
         assertEquals(1, packsSent);
         assertEquals("Loading Resource Pack...", steve.messages.get(0));
 
+        assertTrue(steve.messages.get(2).startsWith("Use /tfmc pack auto"));
+
         run(steve, "tfmc pack auto");
         assertEquals(List.of("Steve tfmcresourcepack.enable true"), permissionChanges);
+    }
+
+    @Test
+    void packHidesAutoApplyWhereTheJoinGateSendsItToEveryone() throws Exception {
+        packRequired = true;
+        dispatcher = new CommandDispatcher<>();
+        dispatcher.getRoot().addChild(command.build());
+        TestPlayer steve = player("Steve");
+        assertTrue(visible(steve, "pack").isEmpty());
+        run(steve, "tfmc pack");
+        assertEquals(1, packsSent);
+        assertEquals(2, steve.messages.size());
+        assertThrows(CommandSyntaxException.class, () -> dispatcher.execute("tfmc pack auto", source(steve.player)));
+        assertTrue(permissionChanges.isEmpty());
     }
 
     @Test
@@ -287,13 +304,23 @@ class TfmcCommandTest {
     }
 
     @Test
-    void drinksOpenDrinkBuilderForDonors() throws Exception {
-        run(player("Noble", "group.noble"), "tfmc drinks");
-        assertEquals(List.of("drinkbuilder"), playerCommands);
+    void drinksLinkDonorsToTheWebsite() throws Exception {
+        TestPlayer noble = player("Noble", "group.noble");
+        run(noble, "tfmc drinks");
+        assertTrue(playerCommands.isEmpty());
+        assertTrue(noble.messages.get(0).startsWith("Design your custom drinks on the website"));
+
+        // A live tfmc.yml from before drinks.message still gets the link
+        config.loadFromString(Files.readString(Path.of("src/main/resources/tfmc.yml"))
+                .replaceAll("(?m)^  message: \"<yellow>Design.*$", "  player-command: drinkbuilder"));
+        TestPlayer gilded = player("Gilded", "group.gilded");
+        run(gilded, "tfmc drinks");
+        assertTrue(playerCommands.isEmpty());
+        assertTrue(gilded.messages.get(0).startsWith("Design your custom drinks on the website"));
 
         TestPlayer steve = player("Steve");
         run(steve, "tfmc drinks");
-        assertEquals(1, playerCommands.size());
+        assertTrue(playerCommands.isEmpty());
         assertTrue(steve.messages.get(0).startsWith("This command only works for Noble, Gilded, Ascended and Legacy Donators"));
     }
 
@@ -639,6 +666,11 @@ class TfmcCommandTest {
         @Override
         public void sendResourcePack(Player player) {
             packsSent++;
+        }
+
+        @Override
+        public boolean packRequiredOnJoin() {
+            return packRequired;
         }
 
         @Override
