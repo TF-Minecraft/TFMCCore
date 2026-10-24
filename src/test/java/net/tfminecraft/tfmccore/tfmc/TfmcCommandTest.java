@@ -64,6 +64,7 @@ class TfmcCommandTest {
     private RuntimeException trackFailure;
     private final List<Runnable> mainThread = new ArrayList<>();
     private int packsSent;
+    private boolean packRequired;
     private long clock = NOW.toEpochMilli();
 
     private CommandDispatcher<CommandSourceStack> dispatcher;
@@ -251,11 +252,29 @@ class TfmcCommandTest {
     }
 
     @Test
-    void packSendsTheResourcePack() throws Exception {
+    void packSendsTheResourcePackAndTogglesAutoApply() throws Exception {
         TestPlayer steve = player("Steve");
         run(steve, "tfmc pack");
         assertEquals(1, packsSent);
         assertEquals("Loading Resource Pack...", steve.messages.get(0));
+
+        assertTrue(steve.messages.get(2).startsWith("Use /tfmc pack auto"));
+
+        run(steve, "tfmc pack auto");
+        assertEquals(List.of("Steve tfmcresourcepack.enable true"), permissionChanges);
+    }
+
+    @Test
+    void packHidesAutoApplyWhereTheJoinGateSendsItToEveryone() throws Exception {
+        packRequired = true;
+        dispatcher = new CommandDispatcher<>();
+        dispatcher.getRoot().addChild(command.build());
+        TestPlayer steve = player("Steve");
+        assertTrue(visible(steve, "pack").isEmpty());
+        run(steve, "tfmc pack");
+        assertEquals(1, packsSent);
+        assertEquals(2, steve.messages.size());
+        assertThrows(CommandSyntaxException.class, () -> dispatcher.execute("tfmc pack auto", source(steve.player)));
         assertTrue(permissionChanges.isEmpty());
     }
 
@@ -290,6 +309,14 @@ class TfmcCommandTest {
         run(noble, "tfmc drinks");
         assertTrue(playerCommands.isEmpty());
         assertTrue(noble.messages.get(0).startsWith("Design your custom drinks on the website"));
+
+        // A live tfmc.yml from before drinks.message still gets the link
+        config.loadFromString(Files.readString(Path.of("src/main/resources/tfmc.yml"))
+                .replaceAll("(?m)^  message: \"<yellow>Design.*$", "  player-command: drinkbuilder"));
+        TestPlayer gilded = player("Gilded", "group.gilded");
+        run(gilded, "tfmc drinks");
+        assertTrue(playerCommands.isEmpty());
+        assertTrue(gilded.messages.get(0).startsWith("Design your custom drinks on the website"));
 
         TestPlayer steve = player("Steve");
         run(steve, "tfmc drinks");
@@ -463,6 +490,19 @@ class TfmcCommandTest {
     }
 
     @Test
+    void resourcePackPreferencesAvoidRedundantPermissionWrites() throws Exception {
+        TestPlayer automatic = player("Auto", "tfmcresourcepack.enable");
+        run(automatic, "tfmc pack auto");
+        assertEquals("Resource Pack Auto-Apply is already enabled.", automatic.messages.getFirst());
+        TestPlayer manual = player("Manual");
+        run(manual, "tfmc pack manual");
+        assertEquals("Resource Pack Auto-Apply is already disabled.", manual.messages.getFirst());
+        assertTrue(permissionChanges.isEmpty());
+        run(automatic, "tfmc pack manual");
+        assertEquals(List.of("Auto tfmcresourcepack.enable false"), permissionChanges);
+    }
+
+    @Test
     void invalidPatternMaterialsAreSkippedAndTheCooldownPreventsDuplicateItems() throws Exception {
         config.loadFromString("""
                 patterns:
@@ -626,6 +666,11 @@ class TfmcCommandTest {
         @Override
         public void sendResourcePack(Player player) {
             packsSent++;
+        }
+
+        @Override
+        public boolean packRequiredOnJoin() {
+            return packRequired;
         }
 
         @Override

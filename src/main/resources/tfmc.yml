@@ -33,9 +33,26 @@ tips:
     - "<gray><i>Use <#eeeeee>/tfmc tips disable</#eeeeee> to disable them."
 
 pack:
+  # Players holding this permission get the pack on login (handled by the join event).
+  auto-permission: tfmcresourcepack.enable
   loading:
     - "<yellow>Loading Resource Pack..."
     - "<yellow>If you still cannot see the textures, consult the <gold>Discord</gold> FAQ or open a Ticket."
+  # Only shown, like /tfmc pack auto|manual, where resource-pack.require-on-join is off.
+  auto-hint:
+    - "<gray><i>Use <#eeeeee>/tfmc pack auto</#eeeeee> if you want to apply the pack automatically upon login."
+  auto-enabled:
+    - "<green>Enabled Resource Pack Auto-Apply!"
+    - "<gray><i>Use <#eeeeee>/tfmc pack</#eeeeee> to apply manually."
+  auto-already-enabled:
+    - "<green>Resource Pack Auto-Apply is already enabled."
+    - "<gray><i>Use <#eeeeee>/tfmc pack manual</#eeeeee> to turn it off."
+  auto-disabled:
+    - "<red>Disabled Resource Pack Auto-Apply!"
+    - "<gray><i>Use <#eeeeee>/tfmc pack auto</#eeeeee> to apply automatically upon login."
+  auto-already-disabled:
+    - "<red>Resource Pack Auto-Apply is already disabled."
+    - "<gray><i>Use <#eeeeee>/tfmc pack auto</#eeeeee> to apply automatically upon login."
 
 booster:
   cooldown-seconds: 259200
@@ -64,6 +81,7 @@ booster:
 
 drinks:
   permissions: [group.legacy, group.ascended, group.gilded, group.noble]
+  # Custom drinks are made on the website. Missing here, the plugin's built-in link is used.
   message: "<yellow>Design your custom drinks on the website: <gold><click:open_url:'https://www.tfminecraft.net/profile?tab=drinks'>tfminecraft.net/profile</click></gold> (Drinks tab)."
   denied: "<red>This command only works for <#2991C5><b>Noble</b></#2991C5>, <#FCB619><b>Gilded</b></#FCB619>, <#803EFC><b>Ascended</b></#803EFC> and <gold><b>Legacy</b></gold> Donators: <gold><click:open_url:'https://www.patreon.com/c/TFMCRP'>https://www.patreon.com/c/TFMCRP</click>"
 

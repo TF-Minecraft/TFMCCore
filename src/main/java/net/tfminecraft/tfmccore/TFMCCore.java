@@ -203,6 +203,11 @@ public class TFMCCore extends JavaPlugin{
         else player.sendMessage("TFMC resource pack is currently unavailable.");
     }
 
+    /** True when resource-pack.require-on-join made every joining player load the pack. */
+    public boolean packRequiredOnJoin() {
+        return requiredPacks != null;
+    }
+
     /** Retries the required pack only for an online player whose current attempt failed. */
     public boolean retryRequiredPack(org.bukkit.entity.Player player) {
         return requiredPacks != null && requiredPacks.retry(player);

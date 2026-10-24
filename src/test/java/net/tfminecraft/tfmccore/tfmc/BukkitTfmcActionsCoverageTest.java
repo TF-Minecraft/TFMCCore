@@ -63,11 +63,13 @@ class BukkitTfmcActionsCoverageTest {
       actions.consoleCommand("say Ready");
       actions.playerCommand(player, "spawn");
       actions.sendResourcePack(player);
+      actions.packRequiredOnJoin();
       actions.broadcast(announcement);
 
       bukkit.verify(() -> Bukkit.dispatchCommand(console, "say Ready"));
       verify(player).performCommand("spawn");
       verify(plugin).sendResourcePack(player);
+      verify(plugin).packRequiredOnJoin();
       verify(server).sendMessage(announcement);
     }
   }

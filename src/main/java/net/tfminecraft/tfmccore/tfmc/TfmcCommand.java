@@ -46,6 +46,8 @@ public final class TfmcCommand {
 
     public static final String NAME = "tfmc";
     public static final String BOOSTER_COOLDOWN = "booster";
+    static final String DRINKS_MESSAGE = "<yellow>Design your custom drinks on the website: "
+            + "<gold><click:open_url:'https://www.tfminecraft.net/profile?tab=drinks'>tfminecraft.net/profile</click></gold> (Drinks tab).";
 
     private record ParrotFlight(TfmcActions.FlightState previous, Runnable cancelExpiry) {}
 
@@ -79,7 +81,13 @@ public final class TfmcCommand {
                 .then(Commands.literal("enable").executes(player(p -> tips(p, false))))
                 .then(Commands.literal("disable").executes(player(p -> tips(p, true)))));
 
-        root.then(Commands.literal("pack").executes(player(this::pack)));
+        // Where the join gate already sends the pack to everyone (Main, Dev), auto/manual would change nothing
+        LiteralArgumentBuilder<CommandSourceStack> pack = Commands.literal("pack").executes(player(this::pack));
+        if (!actions.packRequiredOnJoin()) {
+            pack.then(Commands.literal("auto").executes(player(p -> autoPack(p, true))))
+                    .then(Commands.literal("manual").executes(player(p -> autoPack(p, false))));
+        }
+        root.then(pack);
 
         root.then(Commands.literal("booster").executes(player(this::booster)));
         root.then(Commands.literal("drinks").executes(player(this::drinks)));
@@ -195,6 +203,18 @@ public final class TfmcCommand {
     private void pack(Player player) {
         actions.sendResourcePack(player);
         send(player, "pack.loading");
+        if (!actions.packRequiredOnJoin()) {
+            send(player, "pack.auto-hint");
+        }
+    }
+
+    private void autoPack(Player player, boolean enable) {
+        String node = config.string("pack.auto-permission");
+        if (player.hasPermission(node) == enable) {
+            send(player, enable ? "pack.auto-already-enabled" : "pack.auto-already-disabled");
+            return;
+        }
+        update(player, actions.setPermission(player, node, enable), enable ? "pack.auto-enabled" : "pack.auto-disabled");
     }
 
     private void booster(Player player) {
@@ -223,7 +243,11 @@ public final class TfmcCommand {
             send(player, "drinks.denied");
             return;
         }
-        send(player, "drinks.message");
+        // Custom drinks are made on the website; /drinkbuilder is an admin command
+        List<String> lines = config.lines("drinks.message");
+        for (String line : lines.isEmpty() ? List.of(DRINKS_MESSAGE) : lines) {
+            player.sendMessage(MINI.deserialize(line));
+        }
     }
 
     private void patterns(Player player) {

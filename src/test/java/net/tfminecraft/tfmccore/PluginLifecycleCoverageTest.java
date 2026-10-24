@@ -490,6 +490,7 @@ class PluginLifecycleCoverageTest {
 
         when(gate.retry(rig.player)).thenReturn(true);
         assertTrue(rig.plugin.retryRequiredPack(rig.player));
+        assertTrue(rig.plugin.packRequiredOnJoin());
         rig.plugin.onDisable();
         verify(gate).close();
       }
