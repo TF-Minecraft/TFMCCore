@@ -79,9 +79,7 @@ public final class TfmcCommand {
                 .then(Commands.literal("enable").executes(player(p -> tips(p, false))))
                 .then(Commands.literal("disable").executes(player(p -> tips(p, true)))));
 
-        root.then(Commands.literal("pack").executes(player(this::pack))
-                .then(Commands.literal("auto").executes(player(p -> autoPack(p, true))))
-                .then(Commands.literal("manual").executes(player(p -> autoPack(p, false)))));
+        root.then(Commands.literal("pack").executes(player(this::pack)));
 
         root.then(Commands.literal("booster").executes(player(this::booster)));
         root.then(Commands.literal("drinks").executes(player(this::drinks)));
@@ -199,15 +197,6 @@ public final class TfmcCommand {
         send(player, "pack.loading");
     }
 
-    private void autoPack(Player player, boolean enable) {
-        String node = config.string("pack.auto-permission");
-        if (player.hasPermission(node) == enable) {
-            send(player, enable ? "pack.auto-already-enabled" : "pack.auto-already-disabled");
-            return;
-        }
-        update(player, actions.setPermission(player, node, enable), enable ? "pack.auto-enabled" : "pack.auto-disabled");
-    }
-
     private void booster(Player player) {
         Optional<String> tier = config.keys("booster.tiers").stream()
                 .filter(key -> player.hasPermission(config.string("booster.tiers." + key + ".permission")))
@@ -234,7 +223,7 @@ public final class TfmcCommand {
             send(player, "drinks.denied");
             return;
         }
-        actions.playerCommand(player, config.string("drinks.player-command"));
+        send(player, "drinks.message");
     }
 
     private void patterns(Player player) {

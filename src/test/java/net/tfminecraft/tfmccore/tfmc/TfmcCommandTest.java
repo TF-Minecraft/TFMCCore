@@ -251,14 +251,12 @@ class TfmcCommandTest {
     }
 
     @Test
-    void packSendsTheResourcePackAndTogglesAutoApply() throws Exception {
+    void packSendsTheResourcePack() throws Exception {
         TestPlayer steve = player("Steve");
         run(steve, "tfmc pack");
         assertEquals(1, packsSent);
         assertEquals("Loading Resource Pack...", steve.messages.get(0));
-
-        run(steve, "tfmc pack auto");
-        assertEquals(List.of("Steve tfmcresourcepack.enable true"), permissionChanges);
+        assertTrue(permissionChanges.isEmpty());
     }
 
     @Test
@@ -287,13 +285,15 @@ class TfmcCommandTest {
     }
 
     @Test
-    void drinksOpenDrinkBuilderForDonors() throws Exception {
-        run(player("Noble", "group.noble"), "tfmc drinks");
-        assertEquals(List.of("drinkbuilder"), playerCommands);
+    void drinksLinkDonorsToTheWebsite() throws Exception {
+        TestPlayer noble = player("Noble", "group.noble");
+        run(noble, "tfmc drinks");
+        assertTrue(playerCommands.isEmpty());
+        assertTrue(noble.messages.get(0).startsWith("Design your custom drinks on the website"));
 
         TestPlayer steve = player("Steve");
         run(steve, "tfmc drinks");
-        assertEquals(1, playerCommands.size());
+        assertTrue(playerCommands.isEmpty());
         assertTrue(steve.messages.get(0).startsWith("This command only works for Noble, Gilded, Ascended and Legacy Donators"));
     }
 
@@ -460,19 +460,6 @@ class TfmcCommandTest {
             assertEquals(List.of("Alex"), suggestions(helper, "tfmc ban a"));
             assertTrue(suggestions(helper, "tfmc ban nobody").isEmpty());
         }
-    }
-
-    @Test
-    void resourcePackPreferencesAvoidRedundantPermissionWrites() throws Exception {
-        TestPlayer automatic = player("Auto", "tfmcresourcepack.enable");
-        run(automatic, "tfmc pack auto");
-        assertEquals("Resource Pack Auto-Apply is already enabled.", automatic.messages.getFirst());
-        TestPlayer manual = player("Manual");
-        run(manual, "tfmc pack manual");
-        assertEquals("Resource Pack Auto-Apply is already disabled.", manual.messages.getFirst());
-        assertTrue(permissionChanges.isEmpty());
-        run(automatic, "tfmc pack manual");
-        assertEquals(List.of("Auto tfmcresourcepack.enable false"), permissionChanges);
     }
 
     @Test
