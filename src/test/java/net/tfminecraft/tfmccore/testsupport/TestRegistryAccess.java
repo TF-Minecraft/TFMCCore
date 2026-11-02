@@ -11,6 +11,7 @@ import org.bukkit.Keyed;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.Sound;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.damage.DamageType;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.potion.PotionEffectType;
@@ -19,7 +20,7 @@ import org.bukkit.potion.PotionEffectType;
  * Stands in for the server's registries, which Paper finds through {@link java.util.ServiceLoader}.
  * Without it the first {@code Sound} constant a test touches fails to initialise, and every later
  * test in the same JVM gets {@code NoClassDefFoundError}. Sound, enchantment, potion and damage
- * identifiers resolve; other registries remain unavailable without a server.
+ * identifiers and attributes resolve; other registries remain unavailable without a server.
  */
 public final class TestRegistryAccess implements RegistryAccess {
 
@@ -27,6 +28,7 @@ public final class TestRegistryAccess implements RegistryAccess {
   private static final Map<NamespacedKey, Enchantment> ENCHANTMENTS = new ConcurrentHashMap<>();
   private static final Map<NamespacedKey, PotionEffectType> EFFECTS = new ConcurrentHashMap<>();
   private static final Map<NamespacedKey, DamageType> DAMAGE_TYPES = new ConcurrentHashMap<>();
+  private static final Map<NamespacedKey, Attribute> ATTRIBUTES = new ConcurrentHashMap<>();
 
   @Override
   @Deprecated
@@ -35,7 +37,8 @@ public final class TestRegistryAccess implements RegistryAccess {
         Sound.class.equals(type),
         Enchantment.class.equals(type),
         PotionEffectType.class.equals(type),
-        DamageType.class.equals(type));
+        DamageType.class.equals(type),
+        Attribute.class.equals(type));
   }
 
   @Override
@@ -44,12 +47,13 @@ public final class TestRegistryAccess implements RegistryAccess {
         RegistryKey.SOUND_EVENT.equals(key),
         RegistryKey.ENCHANTMENT.equals(key),
         RegistryKey.MOB_EFFECT.equals(key),
-        RegistryKey.DAMAGE_TYPE.equals(key));
+        RegistryKey.DAMAGE_TYPE.equals(key),
+        RegistryKey.ATTRIBUTE.equals(key));
   }
 
   @SuppressWarnings("unchecked")
   private static <T extends Keyed> Registry<T> registry(
-      boolean sounds, boolean enchantments, boolean effects, boolean damage) {
+      boolean sounds, boolean enchantments, boolean effects, boolean damage, boolean attributes) {
     return (Registry<T>)
         Proxy.newProxyInstance(
             Registry.class.getClassLoader(),
@@ -85,6 +89,10 @@ public final class TestRegistryAccess implements RegistryAccess {
                       yield create
                           ? DAMAGE_TYPES.computeIfAbsent(key, k -> identifier(DamageType.class, k))
                           : DAMAGE_TYPES.get(key);
+                    if (attributes)
+                      yield create
+                          ? ATTRIBUTES.computeIfAbsent(key, k -> identifier(Attribute.class, k))
+                          : ATTRIBUTES.get(key);
                     throw new IllegalStateException(
                         "This registry is unavailable without a server");
                   }
