@@ -20,6 +20,7 @@ import net.tfminecraft.tfmccore.commands.CoreCommands;
 import net.tfminecraft.tfmccore.commands.CoreTabCompletion;
 import net.tfminecraft.tfmccore.commands.SilentPermissionCommand;
 import net.tfminecraft.tfmccore.golem.GolemListener;
+import net.tfminecraft.tfmccore.health.MaxHealthRounder;
 import net.tfminecraft.tfmccore.loader.ConfigLoader;
 import net.tfminecraft.tfmccore.loader.DropLoader;
 import net.tfminecraft.tfmccore.loader.StationLoader;
@@ -79,6 +80,7 @@ public class TFMCCore extends JavaPlugin{
     private net.tfminecraft.tfmccore.resourcepack.PackTextureGuard textureGuard;
     private net.tfminecraft.tfmccore.resourcepack.RequiredPackGate requiredPacks;
     private BookCopyUnblocker bookCopies;
+    private MaxHealthRounder maxHealth;
 
     @Override
     public void onEnable() {
@@ -185,6 +187,7 @@ public class TFMCCore extends JavaPlugin{
         if (multipartPacks != null) multipartPacks.close();
         if (textureGuard != null) textureGuard.close();
         if (bookCopies != null) bookCopies.unwrap();
+        if (maxHealth != null) maxHealth.close();
         if (stoneListener != null) {
             stoneListener.refundAll();
         }
@@ -340,6 +343,7 @@ public class TFMCCore extends JavaPlugin{
         BookGlintStamper.register(this);
         BookGlintHider.register(this);
         bookCopies = BookCopyUnblocker.register(this);
+        maxHealth = MaxHealthRounder.register(this);
     }
 
     public void createConfigs() {
