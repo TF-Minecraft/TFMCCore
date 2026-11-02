@@ -343,7 +343,10 @@ public class TFMCCore extends JavaPlugin{
         BookGlintStamper.register(this);
         BookGlintHider.register(this);
         bookCopies = BookCopyUnblocker.register(this);
-        maxHealth = MaxHealthRounder.register(this);
+        // MythicLib is a soft dependency, and the rounder's class implements a MythicLib interface
+        if (getServer().getPluginManager().isPluginEnabled("MythicLib")) {
+            maxHealth = MaxHealthRounder.register(this);
+        }
     }
 
     public void createConfigs() {

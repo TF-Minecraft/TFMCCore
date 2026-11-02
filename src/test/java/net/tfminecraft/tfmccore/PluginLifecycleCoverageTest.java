@@ -432,6 +432,23 @@ class PluginLifecycleCoverageTest {
   }
 
   @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void maxHealthRounderOnlyLoadsWithMythicLibAndClosesOnDisable(boolean mythicLib) throws Exception {
+    try (Rig rig = new Rig();
+        var rounders = mockStatic(net.tfminecraft.tfmccore.health.MaxHealthRounder.class)) {
+      var rounder = mock(net.tfminecraft.tfmccore.health.MaxHealthRounder.class);
+      rounders.when(() -> net.tfminecraft.tfmccore.health.MaxHealthRounder.register(rig.plugin)).thenReturn(rounder);
+      when(rig.manager.isPluginEnabled("MythicLib")).thenReturn(mythicLib);
+
+      rig.plugin.onEnable();
+      rig.plugin.onDisable();
+
+      rounders.verify(() -> net.tfminecraft.tfmccore.health.MaxHealthRounder.register(rig.plugin), times(mythicLib ? 1 : 0));
+      verify(rounder, times(mythicLib ? 1 : 0)).close();
+    }
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"off", "absent", "standard", "multipart"})
   void requiredPackGateIsOptInAndOwnsManualSendsWhileLoading(String scenario) throws Exception {
     try (Rig rig = new Rig()) {
