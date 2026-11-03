@@ -19,6 +19,7 @@ public class Cache {
     // Read from packet threads
     public static volatile boolean hideBookGlint = true;
     public static boolean allowBookCopies = true;
+    public static volatile boolean soulSandStride = false;
 
     public static int armourTime = 7;
 

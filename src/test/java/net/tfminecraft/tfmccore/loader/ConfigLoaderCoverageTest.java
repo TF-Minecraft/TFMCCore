@@ -111,6 +111,7 @@ class ConfigLoaderCoverageTest {
       assertEquals(true, cache.getField(name).get(null), name);
     }
     assertEquals(false, cache.getField("limitShields").get(null));
+    assertEquals(false, cache.getField("soulSandStride").get(null));
     assertEquals(7, cache.getField("armourTime").get(null));
     assertEquals(List.of(), cache.getField("blockedCrafts").get(null));
     assertEquals(List.of(), cache.getField("blockedConsume").get(null));
@@ -134,6 +135,7 @@ class ConfigLoaderCoverageTest {
         xaero-fair-play: false
         hide-book-glint: false
         allow-book-copies: false
+        soul-sand-stride: true
         armour-time: 12
         blocked-consume: [GOLDEN_APPLE]
         blocked-crafts: [DIAMOND_SWORD]
@@ -151,6 +153,7 @@ class ConfigLoaderCoverageTest {
     assertFalse(Cache.xaeroFairPlay);
     assertFalse(Cache.hideBookGlint);
     assertFalse(Cache.allowBookCopies);
+    assertTrue(Cache.soulSandStride);
     assertEquals(12, Cache.armourTime);
     assertEquals(List.of(Material.GOLDEN_APPLE), Cache.blockedConsume);
     assertEquals(List.of(Material.DIAMOND_SWORD), Cache.blockedCrafts);
@@ -165,6 +168,7 @@ class ConfigLoaderCoverageTest {
     assertTrue(Cache.compactResourcePackOverlays);
     assertTrue(Cache.hideBookGlint);
     assertTrue(Cache.allowBookCopies);
+    assertFalse(Cache.soulSandStride);
     assertEquals(7, Cache.armourTime);
     assertTrue(Cache.blockedCrafts.isEmpty());
     assertTrue(Cache.blockedConsume.isEmpty());

@@ -37,6 +37,7 @@ public class ConfigLoader {
         Cache.xaeroFairPlay = config.getBoolean("xaero-fair-play", true);
         Cache.hideBookGlint = config.getBoolean("hide-book-glint", true);
         Cache.allowBookCopies = config.getBoolean("allow-book-copies", true);
+        Cache.soulSandStride = config.getBoolean("soul-sand-stride", false);
 
         Cache.armourTime = config.getInt("armour-time", 7);
 

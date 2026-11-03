@@ -21,6 +21,7 @@ import net.tfminecraft.tfmccore.commands.CoreTabCompletion;
 import net.tfminecraft.tfmccore.commands.SilentPermissionCommand;
 import net.tfminecraft.tfmccore.golem.GolemListener;
 import net.tfminecraft.tfmccore.health.MaxHealthRounder;
+import net.tfminecraft.tfmccore.movement.SoulSandStride;
 import net.tfminecraft.tfmccore.loader.ConfigLoader;
 import net.tfminecraft.tfmccore.loader.DropLoader;
 import net.tfminecraft.tfmccore.loader.StationLoader;
@@ -343,6 +344,7 @@ public class TFMCCore extends JavaPlugin{
         BookGlintStamper.register(this);
         BookGlintHider.register(this);
         bookCopies = BookCopyUnblocker.register(this);
+        SoulSandStride.register(this);
         // MythicLib is a soft dependency, and the rounder's class implements a MythicLib interface
         if (getServer().getPluginManager().isPluginEnabled("MythicLib")) {
             maxHealth = MaxHealthRounder.register(this);
