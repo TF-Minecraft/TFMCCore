@@ -28,8 +28,9 @@ import net.tfminecraft.tfmccore.cache.Cache;
  * the normal way. Stepping on needs soul sand at the feet; the effect stays while the feet, or
  * one or two blocks below them, are soul sand, so it is not lost mid-jump.
  *
- * <p>The modifiers and tag are taken off at quit and on disable, before Paper saves the player,
- * so they are never kept in player data; a player back on soul sand gets them again within a tick.
+ * <p>The modifiers and tag are taken off at quit and on disable, before Paper saves the player.
+ * An autosave or crash while someone stands on soul sand can still store them; the tag is stored
+ * with them, so the next check after join removes them off soul sand.
  */
 public final class SoulSandStride implements Listener {
 
@@ -65,7 +66,7 @@ public final class SoulSandStride implements Listener {
         }
     }
 
-    /** Paper fires quit before it saves the player, so the bonus is not written to player data. */
+    /** Paper fires quit before it saves the player, so logging out on soul sand doesn't store the bonus. */
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
