@@ -82,6 +82,7 @@ public class TFMCCore extends JavaPlugin{
     private net.tfminecraft.tfmccore.resourcepack.RequiredPackGate requiredPacks;
     private BookCopyUnblocker bookCopies;
     private MaxHealthRounder maxHealth;
+    private SoulSandStride soulSand;
 
     @Override
     public void onEnable() {
@@ -189,6 +190,7 @@ public class TFMCCore extends JavaPlugin{
         if (textureGuard != null) textureGuard.close();
         if (bookCopies != null) bookCopies.unwrap();
         if (maxHealth != null) maxHealth.close();
+        if (soulSand != null) soulSand.close();
         if (stoneListener != null) {
             stoneListener.refundAll();
         }
@@ -344,7 +346,7 @@ public class TFMCCore extends JavaPlugin{
         BookGlintStamper.register(this);
         BookGlintHider.register(this);
         bookCopies = BookCopyUnblocker.register(this);
-        SoulSandStride.register(this);
+        soulSand = SoulSandStride.register(this);
         // MythicLib is a soft dependency, and the rounder's class implements a MythicLib interface
         if (getServer().getPluginManager().isPluginEnabled("MythicLib")) {
             maxHealth = MaxHealthRounder.register(this);

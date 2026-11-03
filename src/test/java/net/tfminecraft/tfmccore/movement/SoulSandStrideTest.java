@@ -24,6 +24,7 @@ import org.bukkit.scheduler.BukkitScheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import net.tfminecraft.tfmccore.cache.Cache;
 
@@ -80,8 +81,27 @@ class SoulSandStrideTest {
     assertEquals("tfmc:soulstride", s.getKey().toString());
     assertEquals(0.0405, s.getAmount());
     // A leftover modifier is cleared first, so addModifier never sees a duplicate key
+    for (AttributeInstance attribute : List.of(efficiency, speed)) {
+      InOrder order = inOrder(attribute);
+      order.verify(attribute).removeModifier(SoulSandStride.KEY);
+      order.verify(attribute).addModifier(any());
+    }
+  }
+
+  @Test
+  void closeTakesTheEffectOffOnlyFromPlayersWhoHaveIt() {
+    Player other = mock(Player.class);
+    when(other.getScoreboardTags()).thenReturn(new HashSet<>());
+    doReturn(List.of(player, other)).when(server).getOnlinePlayers();
+    tags.add("tfmc_soulstride");
+    when(feet.getType()).thenReturn(Material.SOUL_SAND);
+
+    stride.close();
+
+    assertTrue(tags.isEmpty(), "removed even while still on soul sand");
     verify(efficiency).removeModifier(SoulSandStride.KEY);
     verify(speed).removeModifier(SoulSandStride.KEY);
+    verify(other, never()).getAttribute(any());
   }
 
   @Test

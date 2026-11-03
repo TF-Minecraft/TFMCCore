@@ -51,6 +51,16 @@ public final class SoulSandStride {
         return stride;
     }
 
+    /**
+     * Takes the effect off everyone who has it. Runs on disable, before players are saved, so the
+     * bonus never stays in player data without TFMCCore; the next start gives it back on soul sand.
+     */
+    public void close() {
+        for (Player player : server.getOnlinePlayers()) {
+            if (player.getScoreboardTags().contains(TAG)) remove(player);
+        }
+    }
+
     void tick() {
         boolean on = enabled.getAsBoolean();
         for (Player player : server.getOnlinePlayers()) {
