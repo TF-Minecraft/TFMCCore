@@ -11,6 +11,9 @@ import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -24,8 +27,11 @@ import net.tfminecraft.tfmccore.cache.Cache;
  * amounts and scoreboard tag, so players who had the effect when the event was removed lose it
  * the normal way. Stepping on needs soul sand at the feet; the effect stays while the feet, or
  * one or two blocks below them, are soul sand, so it is not lost mid-jump.
+ *
+ * <p>The modifiers and tag are taken off at quit and on disable, before Paper saves the player,
+ * so they are never kept in player data; a player back on soul sand gets them again within a tick.
  */
-public final class SoulSandStride {
+public final class SoulSandStride implements Listener {
 
     /** The modifier key the ConditionalEvents commands used ({@code tfmc:soulstride}). */
     static final NamespacedKey KEY = new NamespacedKey("tfmc", "soulstride");
@@ -48,17 +54,22 @@ public final class SoulSandStride {
     public static SoulSandStride register(JavaPlugin plugin) {
         SoulSandStride stride = new SoulSandStride(plugin.getServer(), () -> Cache.soulSandStride);
         plugin.getServer().getScheduler().runTaskTimer(plugin, stride::tick, PERIOD, PERIOD);
+        plugin.getServer().getPluginManager().registerEvents(stride, plugin);
         return stride;
     }
 
-    /**
-     * Takes the effect off everyone who has it. Runs on disable, before players are saved, so the
-     * bonus never stays in player data without TFMCCore; the next start gives it back on soul sand.
-     */
+    /** Takes the effect off everyone online who has it. Runs on disable, before players are saved. */
     public void close() {
         for (Player player : server.getOnlinePlayers()) {
             if (player.getScoreboardTags().contains(TAG)) remove(player);
         }
+    }
+
+    /** Paper fires quit before it saves the player, so the bonus is not written to player data. */
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+        if (player.getScoreboardTags().contains(TAG)) remove(player);
     }
 
     void tick() {

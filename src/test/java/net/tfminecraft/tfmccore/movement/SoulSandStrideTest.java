@@ -19,6 +19,8 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlotGroup;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.junit.jupiter.api.BeforeEach;
@@ -169,17 +171,35 @@ class SoulSandStrideTest {
   }
 
   @Test
+  void quittingTakesTheEffectOffBeforeThePlayerIsSaved() {
+    PlayerQuitEvent quit = mock(PlayerQuitEvent.class);
+    when(quit.getPlayer()).thenReturn(player);
+    stride.onQuit(quit);
+    verifyNoInteractions(efficiency, speed);
+
+    tags.add("tfmc_soulstride");
+    when(feet.getType()).thenReturn(Material.SOUL_SAND);
+    stride.onQuit(quit);
+    assertTrue(tags.isEmpty());
+    verify(efficiency).removeModifier(SoulSandStride.KEY);
+    verify(speed).removeModifier(SoulSandStride.KEY);
+  }
+
+  @Test
   void registerRunsEveryFiveTicksAndReadsTheConfigFlag() {
     JavaPlugin plugin = mock(JavaPlugin.class);
     BukkitScheduler scheduler = mock(BukkitScheduler.class);
+    PluginManager manager = mock(PluginManager.class);
     when(plugin.getServer()).thenReturn(server);
     when(server.getScheduler()).thenReturn(scheduler);
+    when(server.getPluginManager()).thenReturn(manager);
     boolean previous = Cache.soulSandStride;
     try {
       SoulSandStride registered = SoulSandStride.register(plugin);
       ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
       verify(scheduler).runTaskTimer(eq(plugin), task.capture(), eq(5L), eq(5L));
       assertNotNull(registered);
+      verify(manager).registerEvents(registered, plugin);
 
       when(feet.getType()).thenReturn(Material.SOUL_SAND);
       Cache.soulSandStride = false;
