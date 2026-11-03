@@ -32,6 +32,9 @@ hide-book-glint: true
 # Let written books be copied with a Book and Quill at a crafting table. MMOItems
 # otherwise blocks the vanilla recipe, because every Book and Quill is a disable-crafting MMOItem.
 allow-book-copies: true
+# Soul Speed I (+1 movement efficiency, +0.0405 speed) while standing on soul sand, checked
+# every 5 ticks. false also takes it off anyone who still has it.
+soul-sand-stride: false
 
 drops-debug: true
 

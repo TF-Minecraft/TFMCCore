@@ -295,7 +295,8 @@ class PluginLifecycleCoverageTest {
       verify(rig.coreCommand).setTabCompleter(rig.tabCompletion);
       verify(rig.silentCommand).setExecutor(any(SilentPermissionCommand.class));
       verify(rig.silentCommand).setTabCompleter(any(SilentPermissionCommand.class));
-      assertEquals(11, rig.listeners.size());
+      assertEquals(12, rig.listeners.size());
+      assertTrue(rig.listeners.stream().anyMatch(net.tfminecraft.tfmccore.movement.SoulSandStride.class::isInstance));
       assertTrue(rig.listeners.stream().anyMatch(BookCopyUnblocker.class::isInstance));
       assertTrue(rig.listeners.stream().anyMatch(BookGlintStamper.class::isInstance));
       assertTrue(rig.listeners.contains(rig.whistles.constructed().getFirst()));
