@@ -149,19 +149,21 @@ public final class RealDamageIndicators implements Listener {
         }
         LivingEntity target = event.getEntity();
         Hits hits = pending.get(target.getUniqueId());
-        if (hits == null) {
-            // One shared flush per tick for every target hit in it
-            if (pending.isEmpty()) nextTick.accept(this::flush);
+        boolean fresh = hits == null;
+        if (fresh) {
             hits = new Hits(target);
             pending.put(target.getUniqueId(), hits);
         }
+        // Pushed before anything that can throw, so the MONITOR pop stays paired
+        attacks.push(hits);
+        // One shared flush per tick for every target hit in it
+        if (fresh && pending.size() == 1) nextTick.accept(this::flush);
         EntityDamageEvent damage = event.toBukkit();
         hits.segment(true);
         hits.predicted += damage.getFinalDamage();
         hits.attacks++;
         hits.reportedEvents.add(damage);
         if (damage instanceof EntityDamageByEntityEvent byEntity) hits.attacker = byEntity.getDamager();
-        attacks.push(hits);
     }
 
     /** Holds back the damage indicators MythicLib shows for the attack being handled. */

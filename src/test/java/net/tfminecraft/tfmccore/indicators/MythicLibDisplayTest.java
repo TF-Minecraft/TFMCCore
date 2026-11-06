@@ -95,6 +95,23 @@ class MythicLibDisplayTest {
   }
 
   @Test
+  void brokenYamlKeepsThePreviousSettingsInsteadOfTheDefaults() throws IOException {
+    File file = dir.resolve("indicators.yml").toFile();
+    Files.writeString(file.toPath(), "damage_indicators:\n  decimal_format: '0.##'\n");
+    MythicLibDisplay display = display(file);
+    display.refresh();
+
+    Files.writeString(file.toPath(), "damage_indicators: [unclosed\n");
+    assertTrue(file.setLastModified(file.lastModified() + 5000));
+    display.refresh();
+    display.format(1);
+
+    assertEquals(1, built.size());
+    assertEquals("0.##", built.get(0).getString("decimal_format"));
+    verify(logger, times(1)).warning(contains("keeping the previous settings"));
+  }
+
+  @Test
   void aConfigItCannotUseBeforeAnyWasReadFallsBackToTheDefaults() throws IOException {
     File file = dir.resolve("indicators.yml").toFile();
     Files.writeString(file.toPath(), "damage_indicators:\n  decimal_format: bad\n");
