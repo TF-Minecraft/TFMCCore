@@ -436,16 +436,24 @@ class PluginLifecycleCoverageTest {
   @ValueSource(booleans = {true, false})
   void maxHealthRounderOnlyLoadsWithMythicLibAndClosesOnDisable(boolean mythicLib) throws Exception {
     try (Rig rig = new Rig();
-        var rounders = mockStatic(net.tfminecraft.tfmccore.health.MaxHealthRounder.class)) {
+        var rounders = mockStatic(net.tfminecraft.tfmccore.health.MaxHealthRounder.class);
+        var indicators = mockStatic(net.tfminecraft.tfmccore.indicators.RealDamageIndicators.class)) {
       var rounder = mock(net.tfminecraft.tfmccore.health.MaxHealthRounder.class);
       rounders.when(() -> net.tfminecraft.tfmccore.health.MaxHealthRounder.register(rig.plugin)).thenReturn(rounder);
       when(rig.manager.isPluginEnabled("MythicLib")).thenReturn(mythicLib);
+      Plugin mythicLibPlugin = mock(Plugin.class);
+      when(mythicLibPlugin.getDataFolder()).thenReturn(new File("MythicLib"));
+      when(rig.manager.getPlugin("MythicLib")).thenReturn(mythicLibPlugin);
 
       rig.plugin.onEnable();
       rig.plugin.onDisable();
 
       rounders.verify(() -> net.tfminecraft.tfmccore.health.MaxHealthRounder.register(rig.plugin), times(mythicLib ? 1 : 0));
       verify(rounder, times(mythicLib ? 1 : 0)).close();
+      indicators.verify(
+          () -> net.tfminecraft.tfmccore.indicators.RealDamageIndicators.register(
+              rig.plugin, new File("MythicLib", "indicators.yml")),
+          times(mythicLib ? 1 : 0));
     }
   }
 

@@ -21,6 +21,7 @@ import net.tfminecraft.tfmccore.commands.CoreTabCompletion;
 import net.tfminecraft.tfmccore.commands.SilentPermissionCommand;
 import net.tfminecraft.tfmccore.golem.GolemListener;
 import net.tfminecraft.tfmccore.health.MaxHealthRounder;
+import net.tfminecraft.tfmccore.indicators.RealDamageIndicators;
 import net.tfminecraft.tfmccore.movement.SoulSandStride;
 import net.tfminecraft.tfmccore.loader.ConfigLoader;
 import net.tfminecraft.tfmccore.loader.DropLoader;
@@ -350,6 +351,8 @@ public class TFMCCore extends JavaPlugin{
         // MythicLib is a soft dependency, and the rounder's class implements a MythicLib interface
         if (getServer().getPluginManager().isPluginEnabled("MythicLib")) {
             maxHealth = MaxHealthRounder.register(this);
+            RealDamageIndicators.register(this, new File(
+                    getServer().getPluginManager().getPlugin("MythicLib").getDataFolder(), "indicators.yml"));
         }
     }
 

@@ -35,6 +35,10 @@ allow-book-copies: true
 # Soul Speed I (+1 movement efficiency, +0.0405 speed) while standing on soul sand, checked
 # every 5 ticks. false also takes it off anyone who still has it.
 soul-sand-stride: false
+# Make MythicLib's damage indicators show the health the target really lost, after armour,
+# absorption and anything else that cuts damage late. Each indicator appears one tick later.
+# false shows MythicLib's own number, which leaves armour out.
+accurate-damage-indicators: true
 
 drops-debug: true
 

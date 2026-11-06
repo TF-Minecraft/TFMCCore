@@ -38,6 +38,7 @@ public class ConfigLoader {
         Cache.hideBookGlint = config.getBoolean("hide-book-glint", true);
         Cache.allowBookCopies = config.getBoolean("allow-book-copies", true);
         Cache.soulSandStride = config.getBoolean("soul-sand-stride", false);
+        Cache.accurateDamageIndicators = config.getBoolean("accurate-damage-indicators", true);
 
         Cache.armourTime = config.getInt("armour-time", 7);
 
