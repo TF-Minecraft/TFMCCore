@@ -15,8 +15,8 @@ import io.lumine.mythic.lib.util.IndicatorConfig;
 /**
  * Shows indicators with MythicLib's own {@link IndicatorConfig}, built from the
  * {@code damage_indicators} section of MythicLib's {@code indicators.yml}: same number format,
- * placement and motion as MythicLib. The file is read again when it changes, which covers a
- * {@code /ml reload} after an edit.
+ * placement and motion as MythicLib. {@link #refresh()} checks the file at most once per tick
+ * that has indicators to show, and reads it again when it has changed.
  */
 final class MythicLibDisplay implements RealDamageIndicators.Display {
 
@@ -30,19 +30,23 @@ final class MythicLibDisplay implements RealDamageIndicators.Display {
         this.factory = factory;
     }
 
-    IndicatorConfig config() {
+    @Override
+    public void refresh() {
         long modified = file.lastModified();
-        if (config == null || modified != loaded) {
-            ConfigurationSection section = YamlConfiguration.loadConfiguration(file).getConfigurationSection("damage_indicators");
-            if (section == null) {
-                // MythicLib refuses to show damage indicators without the section; this only covers it going missing later
-                section = new MemoryConfiguration();
-                section.set("decimal_format", "0.#");
-                section.set("format", "{value}");
-            }
-            config = factory.apply(section);
-            loaded = modified;
+        if (config != null && modified == loaded) return;
+        ConfigurationSection section = YamlConfiguration.loadConfiguration(file).getConfigurationSection("damage_indicators");
+        if (section == null) {
+            // MythicLib refuses to show damage indicators without the section; this only covers it going missing later
+            section = new MemoryConfiguration();
+            section.set("decimal_format", "0.#");
+            section.set("format", "{value}");
         }
+        config = factory.apply(section);
+        loaded = modified;
+    }
+
+    private IndicatorConfig config() {
+        if (config == null) refresh();
         return config;
     }
 

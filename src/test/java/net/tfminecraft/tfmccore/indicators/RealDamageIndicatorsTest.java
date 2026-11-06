@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import java.io.File;
+import java.lang.reflect.Method;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
@@ -15,11 +16,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.bukkit.Location;
 import org.bukkit.Server;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityRegainHealthEvent;
+import org.bukkit.event.entity.EntityRegainHealthEvent.RegainReason;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitScheduler;
@@ -38,8 +45,14 @@ class RealDamageIndicatorsTest {
   static final class Shown implements RealDamageIndicators.Display {
     final List<String> lines = new ArrayList<>();
     final List<Vector> directions = new ArrayList<>();
+    int refreshes;
     Runnable duringShow = () -> {};
     private final DecimalFormat format = new DecimalFormat("0.#", DecimalFormatSymbols.getInstance(Locale.ROOT));
+
+    @Override
+    public void refresh() {
+      refreshes++;
+    }
 
     @Override
     public String format(double value) {
@@ -65,7 +78,11 @@ class RealDamageIndicatorsTest {
     LivingEntity target = mock(Player.class);
     when(target.getUniqueId()).thenReturn(UUID.randomUUID());
     when(target.getHealth()).thenReturn(health);
+    when(target.isValid()).thenReturn(true);
     when(target.getLocation()).thenReturn(new Location(null, 0, 64, 0));
+    AttributeInstance max = mock(AttributeInstance.class);
+    when(max.getValue()).thenReturn(40.0);
+    when(target.getAttribute(Attribute.MAX_HEALTH)).thenReturn(max);
     return target;
   }
 
@@ -78,6 +95,7 @@ class RealDamageIndicatorsTest {
   private static AttackUnregisteredEvent attack(LivingEntity target, Entity attacker, double finalDamage) {
     EntityDamageEvent damage = attacker == null ? mock(EntityDamageEvent.class) : mock(EntityDamageByEntityEvent.class);
     when(damage.getFinalDamage()).thenReturn(finalDamage);
+    when(damage.getEntity()).thenReturn(target);
     if (attacker != null) when(((EntityDamageByEntityEvent) damage).getDamager()).thenReturn(attacker);
     AttackUnregisteredEvent event = mock(AttackUnregisteredEvent.class);
     when(event.getEntity()).thenReturn(target);
@@ -95,6 +113,8 @@ class RealDamageIndicatorsTest {
       events.add(event);
     }
     indicators.onAttackEnd(attack);
+    // The damage event's own MONITOR pass, which also sees the reported hit
+    indicators.onDamage(attack.toBukkit());
     return events;
   }
 
@@ -117,6 +137,7 @@ class RealDamageIndicatorsTest {
     tick();
 
     assertEquals(List.of("&c🗡&4✘ &f3.7"), shown.lines);
+    assertEquals(1, shown.refreshes);
   }
 
   @Test
@@ -137,10 +158,88 @@ class RealDamageIndicatorsTest {
     LivingEntity target = target(3.2);
     hit(attack(target, null, 10), "&f10");
 
-    when(target.isDead()).thenReturn(true);
+    when(target.getHealth()).thenReturn(0.0);
+    when(target.isValid()).thenReturn(false);
     tick();
 
     assertEquals(List.of("&f3.2"), shown.lines);
+  }
+
+  @Test
+  void aTargetRemovedWhileAliveShowsNothing() {
+    LivingEntity target = target(20);
+    hit(attack(target, null, 4), "&f4");
+
+    // The hit landed, then the target logged out or despawned in the same tick
+    when(target.getHealth()).thenReturn(16.0);
+    when(target.isValid()).thenReturn(false);
+    tick();
+
+    assertTrue(shown.lines.isEmpty());
+  }
+
+  @Test
+  void healingBeforeTheFlushIsAddedBack() {
+    LivingEntity target = target(30);
+    hit(attack(target, null, 6), "&f6");
+
+    when(target.getHealth()).thenReturn(24.0);
+    indicators.onHeal(new EntityRegainHealthEvent(target, 1.0, RegainReason.SATIATED));
+    when(target.getHealth()).thenReturn(25.0);
+    tick();
+
+    assertEquals(List.of("&f6"), shown.lines);
+  }
+
+  @Test
+  void onlyHealingThatFitsUnderMaxHealthCounts() {
+    LivingEntity target = target(40);
+    hit(attack(target, null, 1), "&f1");
+
+    when(target.getHealth()).thenReturn(39.5);
+    indicators.onHeal(new EntityRegainHealthEvent(target, 4.0, RegainReason.CUSTOM));
+    when(target.getHealth()).thenReturn(40.0);
+    tick();
+
+    assertEquals(List.of("&f0.5"), shown.lines);
+  }
+
+  @Test
+  void healingWithoutAMaxHealthAttributeCountsInFull() {
+    LivingEntity target = target(30);
+    when(target.getAttribute(Attribute.MAX_HEALTH)).thenReturn(null);
+    hit(attack(target, null, 6), "&f6");
+
+    indicators.onHeal(new EntityRegainHealthEvent(target, 2.0, RegainReason.CUSTOM));
+    when(target.getHealth()).thenReturn(26.0);
+    tick();
+
+    assertEquals(List.of("&f6"), shown.lines);
+  }
+
+  @Test
+  void healingAndDamageOfTargetsWithNothingPendingAreIgnored() {
+    LivingEntity target = target(30);
+    assertDoesNotThrow(() -> indicators.onHeal(new EntityRegainHealthEvent(target, 2.0, RegainReason.CUSTOM)));
+    EntityDamageEvent fire = mock(EntityDamageEvent.class);
+    when(fire.getEntity()).thenReturn(target);
+    assertDoesNotThrow(() -> indicators.onDamage(fire));
+    assertTrue(ticks.isEmpty());
+  }
+
+  @Test
+  void damageMythicLibDidNotReportIsTakenOut() {
+    LivingEntity target = target(30);
+    hit(attack(target, null, 4), "&f4");
+    EntityDamageEvent other = mock(EntityDamageEvent.class);
+    when(other.getEntity()).thenReturn(target);
+    when(other.getFinalDamage()).thenReturn(2.0);
+    indicators.onDamage(other);
+
+    when(target.getHealth()).thenReturn(24.0);
+    tick();
+
+    assertEquals(List.of("&f4"), shown.lines);
   }
 
   @Test
@@ -152,6 +251,17 @@ class RealDamageIndicatorsTest {
     tick();
 
     assertEquals(List.of("&c🗡 &f3", "&9✩ &f1", "&fᜆ"), shown.lines);
+  }
+
+  @Test
+  void aPartThatScalesDownToNothingIsDropped() {
+    LivingEntity target = target(30);
+    hit(attack(target, null, 8.1), "&c🗡 &f8", "&9✩ &f0.1");
+
+    when(target.getHealth()).thenReturn(26.0);
+    tick();
+
+    assertEquals(List.of("&c🗡 &f4"), shown.lines);
   }
 
   @Test
@@ -181,7 +291,6 @@ class RealDamageIndicatorsTest {
     LivingEntity target = target(30);
     hit(attack(target, null, 4), "&f4");
     hit(attack(target, null, 4), "&f4");
-    assertEquals(1, ticks.size());
 
     when(target.getHealth()).thenReturn(26.0);
     tick();
@@ -203,6 +312,25 @@ class RealDamageIndicatorsTest {
   }
 
   @Test
+  void everyTargetHitInATickSharesOneFlush() {
+    LivingEntity first = target(30);
+    LivingEntity second = target(30);
+    LivingEntity quiet = target(30);
+    hit(attack(first, null, 4), "&f4");
+    hit(attack(second, null, 4), "&f4");
+    hit(attack(quiet, null, 4));
+    assertEquals(1, ticks.size());
+
+    when(first.getHealth()).thenReturn(27.0);
+    when(second.getHealth()).thenReturn(28.0);
+    when(quiet.getHealth()).thenReturn(26.0);
+    tick();
+
+    assertEquals(List.of("&f3", "&f2"), shown.lines);
+    assertEquals(1, shown.refreshes);
+  }
+
+  @Test
   void aSingleLineWithoutANumberIsShownAsItIs() {
     LivingEntity target = target(30);
     hit(attack(target, null, 4), "&fᜆᜊᜄ");
@@ -221,6 +349,7 @@ class RealDamageIndicatorsTest {
     tick();
 
     assertTrue(shown.lines.isEmpty());
+    assertEquals(0, shown.refreshes);
   }
 
   @Test
@@ -287,8 +416,7 @@ class RealDamageIndicatorsTest {
   @Test
   void theReplayedIndicatorIsNotHeldAgain() {
     LivingEntity target = target(30);
-    AttackUnregisteredEvent attack = attack(target, null, 4);
-    hit(attack, "&f4");
+    hit(attack(target, null, 4), "&f4");
     List<IndicatorDisplayEvent> replays = new ArrayList<>();
     shown.duringShow = () -> {
       // MythicLib fires IndicatorDisplayEvent again inside displayIndicator, possibly inside another attack
@@ -302,6 +430,8 @@ class RealDamageIndicatorsTest {
     tick();
 
     assertFalse(replays.get(0).isCancelled());
+    // The attack inside the replay is measured on the following tick
+    assertEquals(1, ticks.size());
   }
 
   @Test
@@ -335,6 +465,25 @@ class RealDamageIndicatorsTest {
     }
   }
 
+  /** The handlers only work in this order around MythicLib's NORMAL indicator listener. */
+  @Test
+  void handlersRunAroundMythicLibsIndicatorListener() throws Exception {
+    assertHandler("onAttackStart", AttackUnregisteredEvent.class, EventPriority.LOWEST, false);
+    assertHandler("onIndicator", IndicatorDisplayEvent.class, EventPriority.HIGHEST, true);
+    assertHandler("onAttackEnd", AttackUnregisteredEvent.class, EventPriority.MONITOR, false);
+    assertHandler("onHeal", EntityRegainHealthEvent.class, EventPriority.MONITOR, true);
+    assertHandler("onDamage", EntityDamageEvent.class, EventPriority.MONITOR, true);
+  }
+
+  private static void assertHandler(String name, Class<?> event, EventPriority priority, boolean ignoreCancelled)
+      throws Exception {
+    Method method = RealDamageIndicators.class.getMethod(name, event);
+    EventHandler handler = method.getAnnotation(EventHandler.class);
+    assertNotNull(handler, name);
+    assertEquals(priority, handler.priority(), name);
+    assertEquals(ignoreCancelled, handler.ignoreCancelled(), name);
+  }
+
   @Test
   void registerHooksTheServerSchedulerAndReadsTheSetting() {
     JavaPlugin plugin = mock(JavaPlugin.class);
@@ -350,8 +499,7 @@ class RealDamageIndicatorsTest {
       RealDamageIndicators registered = RealDamageIndicators.register(plugin, new File("indicators.yml"));
       verify(manager).registerEvents(registered, plugin);
 
-      LivingEntity target = target(30);
-      registered.onAttackStart(attack(target, null, 4));
+      registered.onAttackStart(attack(target(30), null, 4));
       ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
       verify(scheduler).runTask(eq(plugin), task.capture());
       task.getValue().run();

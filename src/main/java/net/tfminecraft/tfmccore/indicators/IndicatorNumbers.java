@@ -11,15 +11,17 @@ import java.util.regex.Pattern;
 /**
  * Finds the damage numbers in one MythicLib indicator line, such as {@code &c🗡&4✘ &f6.4}.
  *
- * <p>A number is any run of digits that is not part of a colour code ({@code &4}, {@code §4},
- * {@code &#ff0000}). The icons have no digits. A line holds one number per indicator, or several
- * when MythicLib's {@code split_holograms} is off and it joins a hit's numbers into one line. With
- * {@code custom_font} on, MythicLib draws the digits as glyphs, so no number is found and the line
- * is left as it is.
+ * <p>Colour and format codes are skipped as whole tokens first ({@code &4}, {@code §l},
+ * {@code &#ff0000}, {@code #ff0000}, MiniMessage tags like {@code <shadow:#000000:0.5>}), so a
+ * code right before the value ({@code &46.4}) still leaves {@code 6.4} as the number. A line holds
+ * one number per indicator, or several when MythicLib's {@code split_holograms} is off and it
+ * joins a hit's numbers into one line. With {@code custom_font} on, MythicLib draws the digits as
+ * glyphs, so no number is found and the line is left as it is.
  */
 final class IndicatorNumbers {
 
-    private static final Pattern NUMBER = Pattern.compile("\\d+(?:[.,]\\d+)?");
+    private static final Pattern TOKEN = Pattern.compile(
+            "(?<code>[&§]#[0-9A-Fa-f]{6}|[&§].|#[0-9A-Fa-f]{6}|<[^<>]*>)|(?<number>\\d+(?:[.,]\\d+)?)");
 
     private IndicatorNumbers() {
     }
@@ -29,34 +31,34 @@ final class IndicatorNumbers {
         return numbers(line).size();
     }
 
+    /** The numbers {@code line} shows, in order. */
+    static List<Double> values(String line) {
+        List<Double> values = new ArrayList<>();
+        for (MatchResult number : numbers(line)) values.add(parse(number));
+        return values;
+    }
+
     /** {@code line} with every number replaced by {@code format(change(number))}. */
     static String rewrite(String line, DoubleUnaryOperator change, DoubleFunction<String> format) {
         StringBuilder out = new StringBuilder();
         int from = 0;
         for (MatchResult number : numbers(line)) {
-            double value = Double.parseDouble(number.group().replace(',', '.'));
-            out.append(line, from, number.start()).append(format.apply(change.applyAsDouble(value)));
+            out.append(line, from, number.start()).append(format.apply(change.applyAsDouble(parse(number))));
             from = number.end();
         }
         return out.append(line, from, line.length()).toString();
     }
 
-    private static List<MatchResult> numbers(String line) {
-        List<MatchResult> found = new ArrayList<>();
-        Matcher matcher = NUMBER.matcher(line);
-        while (matcher.find()) {
-            if (!colourCode(line, matcher.start())) found.add(matcher.toMatchResult());
-        }
-        return found;
+    private static double parse(MatchResult number) {
+        return Double.parseDouble(number.group().replace(',', '.'));
     }
 
-    /** True for a digit right after {@code &} or {@code §}, or inside a {@code #rrggbb} colour. */
-    private static boolean colourCode(String line, int start) {
-        for (int i = start - 1; i >= 0 && i >= start - 6; i--) {
-            char c = line.charAt(i);
-            if (c == '#') return true;
-            if (Character.digit(c, 16) < 0) return i == start - 1 && (c == '&' || c == '§');
+    private static List<MatchResult> numbers(String line) {
+        List<MatchResult> found = new ArrayList<>();
+        Matcher matcher = TOKEN.matcher(line);
+        while (matcher.find()) {
+            if (matcher.group("number") != null) found.add(matcher.toMatchResult());
         }
-        return false;
+        return found;
     }
 }
