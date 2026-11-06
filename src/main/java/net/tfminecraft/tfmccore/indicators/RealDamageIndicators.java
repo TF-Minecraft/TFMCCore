@@ -14,9 +14,9 @@ import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.EventHandler;
@@ -39,17 +39,19 @@ import net.tfminecraft.tfmccore.cache.Cache;
  * <p>MythicLib's number leaves out armour and anything else that cuts the damage after its listener
  * reads the event: on Dev a sword hit read 6.4 on bare skin and in full Mythril alike, while the
  * target lost 6.21 and 3.70. This holds each damage indicator back until the next tick, measures
- * how much health and absorption the target lost, rewrites the number, and then shows it through
- * MythicLib's own indicator code, so the icons, crit styling and motion stay MythicLib's.
+ * how much health and absorption the target lost to the reported hits, rewrites the number, and
+ * then shows it through MythicLib's own indicator code, so the icons, crit styling and motion stay
+ * MythicLib's.
  *
- * <p>Healing the target gets before then (regeneration, heal-on-hit: anything that fires
- * {@link EntityRegainHealthEvent}) and damage that MythicLib did not report are added back or taken
- * out, so only the reported hits are measured. Health set directly or absorption added in that
- * tick still lowers the number. When one hit
- * shows several numbers (MythicLib's {@code group_by: packet}, on separate lines or joined into
- * one), each is scaled so they add up to what was lost. Hits on the same target in one tick share
- * one measurement. A hit that took nothing shows nothing, and a killing blow shows the health
- * that was left.
+ * <p>The loss is measured in segments: every reported hit, other damage event and heal on a pending
+ * target ends the running segment and starts its own, so each change of health is put down to the
+ * event that caused it (armour, absorption and overkill included). Only the reported hits' segments
+ * count, so a regeneration tick or other damage in the same tick does not move the number. Health
+ * changed without an event in that tick still counts towards the last hit. When one hit shows
+ * several numbers (MythicLib's {@code group_by: packet}, on separate lines or joined into one),
+ * each is scaled so they add up to what was lost. Hits on the same target in one tick share one
+ * measurement. A hit that took nothing shows nothing, and a killing blow shows the health that
+ * was left.
  */
 public final class RealDamageIndicators implements Listener {
 
@@ -69,45 +71,59 @@ public final class RealDamageIndicators implements Listener {
     /** One target's hits in the current tick. */
     static final class Hits {
         final LivingEntity target;
-        final double before;
         double predicted;
         int attacks;
-        double healed;
         Entity attacker;
         final List<String> lines = new ArrayList<>();
         /** Damage events of the reported hits, so other damage to the target can be told apart. */
-        final Set<EntityDamageEvent> reported = Collections.newSetFromMap(new IdentityHashMap<>());
-        final List<EntityDamageEvent> damage = new ArrayList<>();
+        final Set<EntityDamageEvent> reportedEvents = Collections.newSetFromMap(new IdentityHashMap<>());
+        /** Health and absorption at the start of the running segment. */
+        private double mark;
+        /** Whether the running segment belongs to a reported hit. */
+        private boolean reportedSegment;
+        /** Health and absorption lost in reported segments so far. */
+        private double lost;
 
-        Hits(LivingEntity target, double before) {
+        Hits(LivingEntity target) {
             this.target = target;
-            this.before = before;
+            this.mark = remaining(target);
         }
 
-        /** Damage the target took from events MythicLib did not report as attacks. */
-        double unreported() {
-            double total = 0;
-            for (EntityDamageEvent event : damage) {
-                if (!reported.contains(event)) total += Math.max(0, event.getFinalDamage());
-            }
-            return total;
+        /** Ends the running segment and starts one owned by a reported hit or not. */
+        void segment(boolean reported) {
+            double now = remaining(target);
+            if (reportedSegment) lost += mark - now;
+            mark = now;
+            reportedSegment = reported;
+        }
+
+        double lost() {
+            segment(false);
+            return lost;
         }
     }
+
+    /** Marks an attack on the stack whose indicators are not held (setting off). */
+    private static final Object NOT_HELD = new Object();
 
     private final BooleanSupplier enabled;
     private final Consumer<Runnable> nextTick;
     private final Display display;
     private final DoubleSupplier random;
+    private final Logger logger;
     private final Map<UUID, Hits> pending = new LinkedHashMap<>();
-    /** Targets of the MythicLib attacks being handled right now; MythicLib shows indicators inside them. */
-    private final Deque<LivingEntity> attacks = new ArrayDeque<>();
+    /** The MythicLib attacks being handled right now (their Hits, or NOT_HELD); MythicLib shows indicators inside them. */
+    private final Deque<Object> attacks = new ArrayDeque<>();
     private boolean replaying;
+    private boolean warned;
 
-    RealDamageIndicators(BooleanSupplier enabled, Consumer<Runnable> nextTick, Display display, DoubleSupplier random) {
+    RealDamageIndicators(BooleanSupplier enabled, Consumer<Runnable> nextTick, Display display, DoubleSupplier random,
+            Logger logger) {
         this.enabled = enabled;
         this.nextTick = nextTick;
         this.display = display;
         this.random = random;
+        this.logger = logger;
     }
 
     /** Needs MythicLib enabled; {@code indicators} is MythicLib's {@code indicators.yml}. */
@@ -115,41 +131,45 @@ public final class RealDamageIndicators implements Listener {
         RealDamageIndicators listener = new RealDamageIndicators(
                 () -> Cache.accurateDamageIndicators,
                 task -> plugin.getServer().getScheduler().runTask(plugin, task),
-                new MythicLibDisplay(indicators, IndicatorConfig::new),
-                Math::random);
+                new MythicLibDisplay(indicators, IndicatorConfig::new, plugin.getLogger()),
+                Math::random,
+                plugin.getLogger());
         plugin.getServer().getPluginManager().registerEvents(listener, plugin);
         return listener;
     }
 
-    /** Before MythicLib's indicator listener: remember the target's health and the predicted damage. */
+    /** Before MythicLib's indicator listener: start the hit's segment and add its predicted damage. */
     @EventHandler(priority = EventPriority.LOWEST)
     public void onAttackStart(AttackUnregisteredEvent event) {
+        if (!enabled.getAsBoolean()) {
+            // Not held. Its damage stays out of a pending measurement of this target: it is not a
+            // reported event, so onDamage closes the running segment as unreported before it lands.
+            attacks.push(NOT_HELD);
+            return;
+        }
         LivingEntity target = event.getEntity();
-        // Always pushed, so the MONITOR pop stays paired even if the setting changes in between
-        attacks.push(target);
-        if (!enabled.getAsBoolean()) return;
         Hits hits = pending.get(target.getUniqueId());
         if (hits == null) {
             // One shared flush per tick for every target hit in it
             if (pending.isEmpty()) nextTick.accept(this::flush);
-            hits = new Hits(target, remaining(target));
+            hits = new Hits(target);
             pending.put(target.getUniqueId(), hits);
         }
         EntityDamageEvent damage = event.toBukkit();
+        hits.segment(true);
         hits.predicted += damage.getFinalDamage();
         hits.attacks++;
-        hits.reported.add(damage);
+        hits.reportedEvents.add(damage);
         if (damage instanceof EntityDamageByEntityEvent byEntity) hits.attacker = byEntity.getDamager();
+        attacks.push(hits);
     }
 
     /** Holds back the damage indicators MythicLib shows for the attack being handled. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onIndicator(IndicatorDisplayEvent event) {
         if (replaying || event.getType() != IndicatorDisplayEvent.IndicatorType.DAMAGE) return;
-        LivingEntity target = attacks.peek();
-        if (target == null || !target.getUniqueId().equals(event.getEntity().getUniqueId())) return;
-        Hits hits = pending.get(target.getUniqueId());
-        if (hits == null) return;
+        if (!(attacks.peek() instanceof Hits hits)) return;
+        if (!hits.target.getUniqueId().equals(event.getEntity().getUniqueId())) return;
         event.setCancelled(true);
         hits.lines.add(event.getMessage());
     }
@@ -159,45 +179,53 @@ public final class RealDamageIndicators implements Listener {
         if (!attacks.isEmpty()) attacks.pop();
     }
 
-    /** Healing before the flush would hide damage, so it is added back. */
+    /** A heal on a pending target starts a segment that is not counted. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onHeal(EntityRegainHealthEvent event) {
         Hits hits = pending.get(event.getEntity().getUniqueId());
-        if (hits == null) return;
-        // Only what fits under max health is really regained
-        AttributeInstance max = hits.target.getAttribute(Attribute.MAX_HEALTH);
-        double room = max == null ? event.getAmount() : Math.max(0, max.getValue() - hits.target.getHealth());
-        hits.healed += Math.max(0, Math.min(event.getAmount(), room));
+        if (hits != null) hits.segment(false);
     }
 
-    /** Remembers every damage event on a pending target; the ones MythicLib did not report are taken out. */
+    /** Damage on a pending target starts a segment, counted only for the reported hits. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
         Hits hits = pending.get(event.getEntity().getUniqueId());
-        if (hits != null) hits.damage.add(event);
+        if (hits != null) hits.segment(hits.reportedEvents.contains(event));
     }
 
-    /** The next tick: every reduction has been applied, so the health difference is the real damage. */
+    /** The next tick: every reduction has been applied, so the reported segments hold the real damage. */
     void flush() {
         List<Hits> due = new ArrayList<>(pending.values());
         pending.clear();
         boolean refreshed = false;
         for (Hits hits : due) {
-            if (hits.lines.isEmpty()) continue;
-            // Removed while alive (despawned, logged out, changed world): no health was lost to show
-            if (!hits.target.isValid() && hits.target.getHealth() > 0) continue;
-            double lost = hits.before - remaining(hits.target) + hits.healed - hits.unreported();
-            if (lost < MIN_SHOWN) continue;
-            if (!refreshed) {
-                display.refresh();
-                refreshed = true;
-            }
-            replaying = true;
             try {
-                for (String line : rewrite(hits, lost)) display.show(hits.target, line, direction(hits));
-            } finally {
-                replaying = false;
+                if (hits.lines.isEmpty()) continue;
+                // Removed while alive (despawned, logged out, changed world): nothing to show it on
+                if (!hits.target.isValid() && hits.target.getHealth() > 0) continue;
+                double lost = hits.lost();
+                if (lost < MIN_SHOWN) continue;
+                if (!refreshed) {
+                    display.refresh();
+                    refreshed = true;
+                }
+                show(hits, lost);
+            } catch (RuntimeException e) {
+                // One target's failure must not drop the others' indicators
+                if (!warned) {
+                    warned = true;
+                    logger.log(Level.WARNING, "Damage indicator failed; further failures are not logged", e);
+                }
             }
+        }
+    }
+
+    private void show(Hits hits, double lost) {
+        replaying = true;
+        try {
+            for (String line : rewrite(hits, lost)) display.show(hits.target, line, direction(hits));
+        } finally {
+            replaying = false;
         }
     }
 

@@ -13,11 +13,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.bukkit.Location;
 import org.bukkit.Server;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -67,12 +67,13 @@ class RealDamageIndicatorsTest {
     }
   }
 
+  private final Logger logger = mock(Logger.class);
   private final AtomicBoolean enabled = new AtomicBoolean(true);
   private final List<Runnable> ticks = new ArrayList<>();
   private final Shown shown = new Shown();
   private double random = 0.5;
   private final RealDamageIndicators indicators =
-      new RealDamageIndicators(enabled::get, ticks::add, shown, () -> random);
+      new RealDamageIndicators(enabled::get, ticks::add, shown, () -> random, logger);
 
   private static LivingEntity target(double health) {
     LivingEntity target = mock(Player.class);
@@ -80,9 +81,6 @@ class RealDamageIndicatorsTest {
     when(target.getHealth()).thenReturn(health);
     when(target.isValid()).thenReturn(true);
     when(target.getLocation()).thenReturn(new Location(null, 0, 64, 0));
-    AttributeInstance max = mock(AttributeInstance.class);
-    when(max.getValue()).thenReturn(40.0);
-    when(target.getAttribute(Attribute.MAX_HEALTH)).thenReturn(max);
     return target;
   }
 
@@ -179,10 +177,11 @@ class RealDamageIndicatorsTest {
   }
 
   @Test
-  void healingBeforeTheFlushIsAddedBack() {
+  void aHealBeforeTheFlushDoesNotMoveTheNumber() {
     LivingEntity target = target(30);
     hit(attack(target, null, 6), "&f6");
 
+    // The hit lands, then a regeneration tick heals before the flush
     when(target.getHealth()).thenReturn(24.0);
     indicators.onHeal(new EntityRegainHealthEvent(target, 1.0, RegainReason.SATIATED));
     when(target.getHealth()).thenReturn(25.0);
@@ -192,59 +191,94 @@ class RealDamageIndicatorsTest {
   }
 
   @Test
-  void onlyHealingThatFitsUnderMaxHealthCounts() {
-    LivingEntity target = target(40);
-    hit(attack(target, null, 1), "&f1");
+  void otherDamageInTheSameTickIsNotCounted() {
+    LivingEntity target = target(30);
+    hit(attack(target, null, 4), "&f4");
 
-    when(target.getHealth()).thenReturn(39.5);
-    indicators.onHeal(new EntityRegainHealthEvent(target, 4.0, RegainReason.CUSTOM));
-    when(target.getHealth()).thenReturn(40.0);
+    when(target.getHealth()).thenReturn(26.0);
+    indicators.onDamage(damage(target));
+    when(target.getHealth()).thenReturn(20.0);
     tick();
 
-    assertEquals(List.of("&f0.5"), shown.lines);
+    assertEquals(List.of("&f4"), shown.lines);
   }
 
   @Test
-  void healingWithoutAMaxHealthAttributeCountsInFull() {
-    LivingEntity target = target(30);
-    when(target.getAttribute(Attribute.MAX_HEALTH)).thenReturn(null);
-    hit(attack(target, null, 6), "&f6");
+  void otherDamageThatKillsKeepsTheHitsOwnLoss() {
+    LivingEntity target = target(5);
+    hit(attack(target, null, 3), "&f3");
 
-    indicators.onHeal(new EntityRegainHealthEvent(target, 2.0, RegainReason.CUSTOM));
-    when(target.getHealth()).thenReturn(26.0);
+    when(target.getHealth()).thenReturn(2.0);
+    indicators.onDamage(damage(target));
+    when(target.getHealth()).thenReturn(0.0);
+    when(target.isValid()).thenReturn(false);
     tick();
 
-    assertEquals(List.of("&f6"), shown.lines);
+    assertEquals(List.of("&f3"), shown.lines);
+  }
+
+  @Test
+  void aSecondHitsOwnDamageEventSeenBeforeItIsReportedStillCounts() {
+    LivingEntity target = target(30);
+    hit(attack(target, null, 4), "&f4");
+    when(target.getHealth()).thenReturn(26.0);
+    AttackUnregisteredEvent second = attack(target, null, 4);
+    // This listener's MONITOR can run before MythicLib's, which reports the attack
+    indicators.onDamage(second.toBukkit());
+    hit(second, "&f4");
+
+    when(target.getHealth()).thenReturn(22.0);
+    tick();
+
+    assertEquals(List.of("&f4", "&f4"), shown.lines);
   }
 
   @Test
   void healingAndDamageOfTargetsWithNothingPendingAreIgnored() {
     LivingEntity target = target(30);
     assertDoesNotThrow(() -> indicators.onHeal(new EntityRegainHealthEvent(target, 2.0, RegainReason.CUSTOM)));
-    EntityDamageEvent fire = mock(EntityDamageEvent.class);
-    when(fire.getEntity()).thenReturn(target);
-    assertDoesNotThrow(() -> indicators.onDamage(fire));
+    assertDoesNotThrow(() -> indicators.onDamage(damage(target)));
     assertTrue(ticks.isEmpty());
   }
 
   @Test
-  void damageMythicLibDidNotReportIsTakenOut() {
+  void aHitMadeAfterTheSettingIsTurnedOffStaysOutOfAPendingMeasurement() {
     LivingEntity target = target(30);
     hit(attack(target, null, 4), "&f4");
-    EntityDamageEvent other = mock(EntityDamageEvent.class);
-    when(other.getEntity()).thenReturn(target);
-    when(other.getFinalDamage()).thenReturn(2.0);
-    indicators.onDamage(other);
-    // A negative final damage must not add to the loss
-    EntityDamageEvent negative = mock(EntityDamageEvent.class);
-    when(negative.getEntity()).thenReturn(target);
-    when(negative.getFinalDamage()).thenReturn(-1.0);
-    indicators.onDamage(negative);
+    when(target.getHealth()).thenReturn(26.0);
 
-    when(target.getHealth()).thenReturn(24.0);
+    enabled.set(false);
+    List<IndicatorDisplayEvent> second = hit(attack(target, null, 4), "&f4");
+    when(target.getHealth()).thenReturn(22.0);
+    tick();
+
+    assertFalse(second.get(0).isCancelled());
+    assertEquals(List.of("&f4"), shown.lines);
+  }
+
+  @Test
+  void oneTargetsFailureDoesNotDropTheOthersAndIsLoggedOnce() {
+    LivingEntity broken = target(30);
+    LivingEntity fine = target(30);
+    when(broken.getLocation()).thenThrow(new IllegalStateException("unloaded"));
+    // With an attacker the fly-out reads the target's location, which throws here
+    hit(attack(broken, attackerAt(0, -2), 4), "&f4");
+    hit(attack(fine, null, 4), "&f4");
+    when(broken.getHealth()).thenReturn(26.0);
+    when(fine.getHealth()).thenReturn(26.0);
+    tick();
+    hit(attack(broken, attackerAt(0, -2), 4), "&f4");
+    when(broken.getHealth()).thenReturn(22.0);
     tick();
 
     assertEquals(List.of("&f4"), shown.lines);
+    verify(logger, times(1)).log(eq(Level.WARNING), anyString(), any(IllegalStateException.class));
+  }
+
+  private static EntityDamageEvent damage(LivingEntity target) {
+    EntityDamageEvent event = mock(EntityDamageEvent.class);
+    when(event.getEntity()).thenReturn(target);
+    return event;
   }
 
   @Test

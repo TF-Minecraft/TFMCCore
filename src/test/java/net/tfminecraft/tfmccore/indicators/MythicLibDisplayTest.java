@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Entity;
@@ -25,12 +26,15 @@ class MythicLibDisplayTest {
 
   private final List<ConfigurationSection> built = new ArrayList<>();
   private final IndicatorConfig config = mock(IndicatorConfig.class);
+  private final Logger logger = mock(Logger.class);
 
   private MythicLibDisplay display(File file) {
     return new MythicLibDisplay(file, section -> {
       built.add(section);
+      // MythicLib's IndicatorConfig throws on an invalid decimal_format
+      if ("bad".equals(section.getString("decimal_format"))) throw new IllegalArgumentException("bad pattern");
       return config;
-    });
+    }, logger);
   }
 
   @Test
@@ -70,5 +74,35 @@ class MythicLibDisplayTest {
 
     assertEquals("0.#", built.get(0).getString("decimal_format"));
     assertEquals("{value}", built.get(0).getString("format"));
+  }
+
+  @Test
+  void aConfigItCannotUseKeepsThePreviousSettingsAndIsReportedOncePerChange() throws IOException {
+    File file = dir.resolve("indicators.yml").toFile();
+    Files.writeString(file.toPath(), "damage_indicators:\n  decimal_format: '0.#'\n");
+    MythicLibDisplay display = display(file);
+    display.refresh();
+
+    Files.writeString(file.toPath(), "damage_indicators:\n  decimal_format: bad\n");
+    assertTrue(file.setLastModified(file.lastModified() + 5000));
+    display.refresh();
+    display.refresh();
+    display.show(mock(Entity.class), "&f1", new Vector());
+
+    assertEquals(2, built.size());
+    verify(logger, times(1)).warning(contains("keeping the previous settings"));
+    verify(config).displayIndicator(any(), eq("&f1"), any(), eq(IndicatorType.DAMAGE));
+  }
+
+  @Test
+  void aConfigItCannotUseBeforeAnyWasReadFallsBackToTheDefaults() throws IOException {
+    File file = dir.resolve("indicators.yml").toFile();
+    Files.writeString(file.toPath(), "damage_indicators:\n  decimal_format: bad\n");
+    MythicLibDisplay display = display(file);
+
+    display.format(1);
+
+    assertEquals(2, built.size());
+    assertEquals("0.#", built.get(1).getString("decimal_format"));
   }
 }

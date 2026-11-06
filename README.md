@@ -16,7 +16,7 @@ These features give other TF-Minecraft plugins common building blocks while also
 - **Required pack on join** — opt-in (`resource-pack.require-on-join`); sends the pack as required and publishes `tfmccore:required-pack` player metadata (`loading`, `ready`, `failed`) for RPCharacters. Staff retry a failed load with `/tcore packretry <player>`.
 - **Book appearance** — optionally hides the default glint on signed books by storing a glint override on the books (`hide-book-glint`).
 - **Book copies** — written books can be copied with a Book and Quill at a crafting table, even though MMOItems blocks vanilla recipes that use a disable-crafting MMOItem (`allow-book-copies`).
-- **Accurate damage indicators** — MythicLib's floating damage numbers show the health the target really lost after armour, absorption hearts included, one tick after the hit. Healing in that tick (regeneration, heal-on-hit) doesn't hide it, a killing blow shows the health that was left, and a hit that took nothing shows nothing (`accurate-damage-indicators`).
+- **Accurate damage indicators** — MythicLib's floating damage numbers show the health the target really lost after armour, absorption hearts included, one tick after the hit. Regeneration, other heals and other damage in that tick don't move it, a killing blow shows the health that was left, and a hit that took nothing shows nothing (`accurate-damage-indicators`).
 - **Cross-plugin statistics** — records supported vehicle, character, crafting, skill, and faction events for staff queries.
 
 TFMC Core works alongside the server's specialist plugins, connecting their systems with the smaller details that make the roleplay world feel consistent.
