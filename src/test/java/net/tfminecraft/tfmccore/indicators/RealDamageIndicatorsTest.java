@@ -235,6 +235,11 @@ class RealDamageIndicatorsTest {
     when(other.getEntity()).thenReturn(target);
     when(other.getFinalDamage()).thenReturn(2.0);
     indicators.onDamage(other);
+    // A negative final damage must not add to the loss
+    EntityDamageEvent negative = mock(EntityDamageEvent.class);
+    when(negative.getEntity()).thenReturn(target);
+    when(negative.getFinalDamage()).thenReturn(-1.0);
+    indicators.onDamage(negative);
 
     when(target.getHealth()).thenReturn(24.0);
     tick();

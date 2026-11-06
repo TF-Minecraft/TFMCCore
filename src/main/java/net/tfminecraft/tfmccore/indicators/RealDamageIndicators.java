@@ -42,8 +42,10 @@ import net.tfminecraft.tfmccore.cache.Cache;
  * how much health and absorption the target lost, rewrites the number, and then shows it through
  * MythicLib's own indicator code, so the icons, crit styling and motion stay MythicLib's.
  *
- * <p>Healing the target gets before then (regeneration, heal-on-hit) and damage that MythicLib did
- * not report are added back or taken out, so only the reported hits are measured. When one hit
+ * <p>Healing the target gets before then (regeneration, heal-on-hit: anything that fires
+ * {@link EntityRegainHealthEvent}) and damage that MythicLib did not report are added back or taken
+ * out, so only the reported hits are measured. Health set directly or absorption added in that
+ * tick still lowers the number. When one hit
  * shows several numbers (MythicLib's {@code group_by: packet}, on separate lines or joined into
  * one), each is scaled so they add up to what was lost. Hits on the same target in one tick share
  * one measurement. A hit that took nothing shows nothing, and a killing blow shows the health
@@ -86,7 +88,7 @@ public final class RealDamageIndicators implements Listener {
         double unreported() {
             double total = 0;
             for (EntityDamageEvent event : damage) {
-                if (!reported.contains(event)) total += event.getFinalDamage();
+                if (!reported.contains(event)) total += Math.max(0, event.getFinalDamage());
             }
             return total;
         }
