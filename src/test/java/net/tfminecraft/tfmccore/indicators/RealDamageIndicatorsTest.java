@@ -155,6 +155,17 @@ class RealDamageIndicatorsTest {
   }
 
   @Test
+  void aJoinedLineHasEachOfItsNumbersScaled() {
+    LivingEntity target = target(30);
+    hit(attack(target, null, 8), "&c🗡 &f6 &9✩ &f2");
+
+    when(target.getHealth()).thenReturn(26.0);
+    tick();
+
+    assertEquals(List.of("&c🗡 &f3 &9✩ &f1"), shown.lines);
+  }
+
+  @Test
   void splitIndicatorsWithNoPredictedDamageKeepTheirNumbers() {
     LivingEntity target = target(30);
     hit(attack(target, null, 0), "&f1", "&f2");
@@ -176,6 +187,19 @@ class RealDamageIndicatorsTest {
     tick();
 
     assertEquals(List.of("&f2", "&f2"), shown.lines);
+  }
+
+  @Test
+  void aSecondHitWithoutAnIndicatorKeepsItsShareOutOfTheFirstsNumber() {
+    LivingEntity target = target(30);
+    hit(attack(target, null, 4), "&f4");
+    // Below MythicLib's min_damage: no indicator, but it still took health
+    hit(attack(target, null, 4));
+
+    when(target.getHealth()).thenReturn(26.0);
+    tick();
+
+    assertEquals(List.of("&f2"), shown.lines);
   }
 
   @Test

@@ -1,16 +1,21 @@
 package net.tfminecraft.tfmccore.indicators;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.DoubleFunction;
+import java.util.function.DoubleUnaryOperator;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Finds the damage number in one MythicLib indicator line, such as {@code &c🗡&4✘ &f6.4}.
+ * Finds the damage numbers in one MythicLib indicator line, such as {@code &c🗡&4✘ &f6.4}.
  *
- * <p>The number is the last one in the line that is not part of a colour code ({@code &4},
- * {@code §4}, {@code &#ff0000}). MythicLib's {@code format} puts {@code {value}} after the icons,
- * and the icons have no digits. With {@code custom_font} on, MythicLib draws the digits as glyphs,
- * so no number is found and the line is left as it is.
+ * <p>A number is any run of digits that is not part of a colour code ({@code &4}, {@code §4},
+ * {@code &#ff0000}). The icons have no digits. A line holds one number per indicator, or several
+ * when MythicLib's {@code split_holograms} is off and it joins a hit's numbers into one line. With
+ * {@code custom_font} on, MythicLib draws the digits as glyphs, so no number is found and the line
+ * is left as it is.
  */
 final class IndicatorNumbers {
 
@@ -19,24 +24,28 @@ final class IndicatorNumbers {
     private IndicatorNumbers() {
     }
 
-    /** The number shown in {@code line}, or null when it has none. */
-    static Double value(String line) {
-        MatchResult number = last(line);
-        return number == null ? null : Double.parseDouble(number.group().replace(',', '.'));
+    /** How many numbers {@code line} shows. */
+    static int count(String line) {
+        return numbers(line).size();
     }
 
-    /** {@code line} with its number replaced by {@code replacement}, or null when it has none. */
-    static String replace(String line, String replacement) {
-        MatchResult number = last(line);
-        if (number == null) return null;
-        return line.substring(0, number.start()) + replacement + line.substring(number.end());
+    /** {@code line} with every number replaced by {@code format(change(number))}. */
+    static String rewrite(String line, DoubleUnaryOperator change, DoubleFunction<String> format) {
+        StringBuilder out = new StringBuilder();
+        int from = 0;
+        for (MatchResult number : numbers(line)) {
+            double value = Double.parseDouble(number.group().replace(',', '.'));
+            out.append(line, from, number.start()).append(format.apply(change.applyAsDouble(value)));
+            from = number.end();
+        }
+        return out.append(line, from, line.length()).toString();
     }
 
-    private static MatchResult last(String line) {
+    private static List<MatchResult> numbers(String line) {
+        List<MatchResult> found = new ArrayList<>();
         Matcher matcher = NUMBER.matcher(line);
-        MatchResult found = null;
         while (matcher.find()) {
-            if (!colourCode(line, matcher.start())) found = matcher.toMatchResult();
+            if (!colourCode(line, matcher.start())) found.add(matcher.toMatchResult());
         }
         return found;
     }

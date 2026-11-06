@@ -30,13 +30,13 @@ import net.tfminecraft.tfmccore.cache.Cache;
 /**
  * Makes MythicLib's damage indicators show the health the target really lost.
  *
- * <p>MythicLib builds its indicator from the damage event's final damage while the event is still
- * running, so armour, and anything else that cuts the damage after that point, never shows: a hit
- * on full Mythril read the same as on bare skin. This holds each damage indicator back for one
+ * <p>MythicLib's number leaves out armour and anything else that cuts the damage after its listener
+ * reads the event: on Dev a sword hit read 6.4 on bare skin and in full Mythril alike, while the
+ * target lost 6.21 and 3.70. This holds each damage indicator back for one
  * tick, measures how much health and absorption the target lost, rewrites the number, and then
  * shows it through MythicLib's own indicator code, so the icons, crit styling and motion stay
- * MythicLib's. When one hit shows several numbers (MythicLib's {@code group_by: packet} or
- * {@code split_holograms}), each is scaled so they add up to what was lost. Hits on the same target
+ * MythicLib's. When one hit shows several numbers (MythicLib's {@code group_by: packet}, on
+ * separate lines or joined into one), each is scaled so they add up to what was lost. Hits on the same target
  * in one tick share one measurement. A hit that took nothing shows nothing.
  */
 public final class RealDamageIndicators implements Listener {
@@ -56,6 +56,7 @@ public final class RealDamageIndicators implements Listener {
         final LivingEntity target;
         final double before;
         double predicted;
+        int attacks;
         Entity attacker;
         final List<String> lines = new ArrayList<>();
 
@@ -108,6 +109,7 @@ public final class RealDamageIndicators implements Listener {
         }
         EntityDamageEvent damage = event.toBukkit();
         hits.predicted += damage.getFinalDamage();
+        hits.attacks++;
         if (damage instanceof EntityDamageByEntityEvent byEntity) hits.attacker = byEntity.getDamager();
     }
 
@@ -116,7 +118,7 @@ public final class RealDamageIndicators implements Listener {
     public void onIndicator(IndicatorDisplayEvent event) {
         if (replaying || event.getType() != IndicatorDisplayEvent.IndicatorType.DAMAGE) return;
         LivingEntity target = attacks.peek();
-        if (target == null || target != event.getEntity()) return;
+        if (target == null || !target.getUniqueId().equals(event.getEntity().getUniqueId())) return;
         Hits hits = pending.get(target.getUniqueId());
         if (hits == null) return;
         event.setCancelled(true);
@@ -144,17 +146,13 @@ public final class RealDamageIndicators implements Listener {
 
     private List<String> rewrite(Hits hits, double lost) {
         List<String> lines = new ArrayList<>();
-        if (hits.lines.size() == 1) {
-            String line = hits.lines.get(0);
-            String exact = IndicatorNumbers.replace(line, display.format(lost));
-            lines.add(exact == null ? line : exact);
+        // One attack, one number: write the loss itself, not a scaled rounded number
+        if (hits.attacks == 1 && hits.lines.size() == 1 && IndicatorNumbers.count(hits.lines.get(0)) == 1) {
+            lines.add(IndicatorNumbers.rewrite(hits.lines.get(0), value -> lost, display::format));
             return lines;
         }
         double scale = hits.predicted > 0 ? lost / hits.predicted : 1.0;
-        for (String line : hits.lines) {
-            Double value = IndicatorNumbers.value(line);
-            lines.add(value == null ? line : IndicatorNumbers.replace(line, display.format(value * scale)));
-        }
+        for (String line : hits.lines) lines.add(IndicatorNumbers.rewrite(line, value -> value * scale, display::format));
         return lines;
     }
 

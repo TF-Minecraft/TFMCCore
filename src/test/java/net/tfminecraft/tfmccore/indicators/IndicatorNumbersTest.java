@@ -6,39 +6,43 @@ import org.junit.jupiter.api.Test;
 
 class IndicatorNumbersTest {
 
+  private static String doubled(String line) {
+    return IndicatorNumbers.rewrite(line, value -> value * 2, value -> "<" + value + ">");
+  }
+
   @Test
-  void readsTheValueAfterMythicLibsIconsAndColours() {
-    assertEquals(6.4, IndicatorNumbers.value("&c🗡&4✘ &f6.4"));
-    assertEquals(12.0, IndicatorNumbers.value("§c✘ §f12"));
-    assertEquals(9.5, IndicatorNumbers.value("&c&l🗡&4&l✘ &f9.5&7"));
+  void rewritesTheValueAfterMythicLibsIconsAndColours() {
+    assertEquals("&c🗡&4✘ &f<12.8>", doubled("&c🗡&4✘ &f6.4"));
+    assertEquals("§c✘ §f<24.0>", doubled("§c✘ §f12"));
+    assertEquals("&c&l🗡&4&l✘ &f<19.0>&7", doubled("&c&l🗡&4&l✘ &f9.5&7"));
   }
 
   @Test
   void readsACommaDecimalSeparator() {
-    assertEquals(6.4, IndicatorNumbers.value("&f6,4"));
+    assertEquals("&f<12.8>", doubled("&f6,4"));
   }
 
   @Test
   void skipsHexColours() {
-    assertEquals(3.5, IndicatorNumbers.value("&#ff0000✘ &#123456 3.5"));
-    assertEquals(3.5, IndicatorNumbers.value("<#a1b2c3>✘ 3.5"));
+    assertEquals("&#ff0000✘ &#123456 <7.0>", doubled("&#ff0000✘ &#123456 3.5"));
+    assertEquals("<#a1b2c3>✘ <7.0>", doubled("<#a1b2c3>✘ 3.5"));
   }
 
   @Test
-  void replacesOnlyTheValue() {
-    assertEquals("&c🗡&4✘ &f3.7", IndicatorNumbers.replace("&c🗡&4✘ &f6.4", "3.7"));
-    assertEquals("&4✘ &f2&7", IndicatorNumbers.replace("&4✘ &f10&7", "2"));
+  void rewritesEveryNumberOfAJoinedLine() {
+    assertEquals(2, IndicatorNumbers.count("&c🗡 &f6 &9✩ &f2"));
+    assertEquals("&c🗡 &f<12.0> &9✩ &f<4.0>", doubled("&c🗡 &f6 &9✩ &f2"));
   }
 
   @Test
-  void aLineWithoutANumberIsLeftToTheCaller() {
-    assertNull(IndicatorNumbers.value("&4✘ &fᜆᜊᜄ"));
-    assertNull(IndicatorNumbers.replace("&4✘", "1"));
-    assertNull(IndicatorNumbers.value(""));
+  void aLineWithoutANumberIsUnchanged() {
+    assertEquals(0, IndicatorNumbers.count("&4✘ &fᜆᜊᜄ"));
+    assertEquals("&4✘ &fᜆᜊᜄ", doubled("&4✘ &fᜆᜊᜄ"));
+    assertEquals("", doubled(""));
   }
 
   @Test
   void digitsFarFromAHashAreNumbers() {
-    assertEquals(7.0, IndicatorNumbers.value("abcdef7"));
+    assertEquals("abcdef<14.0>", doubled("abcdef7"));
   }
 }
