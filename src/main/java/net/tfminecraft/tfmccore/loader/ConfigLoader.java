@@ -39,6 +39,7 @@ public class ConfigLoader {
         Cache.allowBookCopies = config.getBoolean("allow-book-copies", true);
         Cache.soulSandStride = config.getBoolean("soul-sand-stride", false);
         Cache.accurateDamageIndicators = config.getBoolean("accurate-damage-indicators", true);
+        Cache.woundedHealingMultiplier = config.getDouble("wounded-healing-multiplier", 0.5);
 
         Cache.armourTime = config.getInt("armour-time", 7);
 

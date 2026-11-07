@@ -21,6 +21,8 @@ public class Cache {
     public static boolean allowBookCopies = true;
     public static volatile boolean soulSandStride = false;
     public static boolean accurateDamageIndicators = true;
+    // Read on every heal
+    public static volatile double woundedHealingMultiplier = 0.5;
 
     public static int armourTime = 7;
 

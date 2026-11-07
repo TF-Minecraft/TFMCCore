@@ -14,6 +14,9 @@ mvn -B --no-transfer-progress org.apache.maven.plugins:maven-install-plugin:3.1.
 mvn -B --no-transfer-progress org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
     -Dfile="libs/MMOCore-1.13.1-SNAPSHOT.jar" -DgroupId="local" -DartifactId="MMOCore" \
     -Dversion="1.13.1-SNAPSHOT-tfmc-81d511d08309" -Dpackaging=jar -DgeneratePom=true "$@"
+mvn -B --no-transfer-progress org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
+    -Dfile="libs/MythicMobs-5.13.1-SNAPSHOT-88530541.jar" -DgroupId="local" -DartifactId="MythicMobs" \
+    -Dversion="5.13.1-SNAPSHOT-88530541-tfmc-6df72b5b331d" -Dpackaging=jar -DgeneratePom=true "$@"
 
 mvn -B --no-transfer-progress org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
     -Dfile="libs/ItemsAdder-4.0.18.jar" -DgroupId="local" -DartifactId="ItemsAdder" \
