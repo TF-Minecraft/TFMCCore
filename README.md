@@ -16,6 +16,7 @@ These features give other TF-Minecraft plugins common building blocks while also
 - **Required pack on join** — opt-in (`resource-pack.require-on-join`); sends the pack as required and publishes `tfmccore:required-pack` player metadata (`loading`, `ready`, `failed`) for RPCharacters. Staff retry a failed load with `/tcore packretry <player>`.
 - **Book appearance** — optionally hides the default glint on signed books by storing a glint override on the books (`hide-book-glint`).
 - **Book copies** — written books can be copied with a Book and Quill at a crafting table, even though MMOItems blocks vanilla recipes that use a disable-crafting MMOItem (`allow-book-copies`).
+- **Wounded healing** — anyone under the Wounded status (a MythicMobs aura from TFMC class skills) heals by `wounded-healing-multiplier` (0.5): lifesteal, skill heals, food and MMOCore regeneration alike. Absorption shields are not affected.
 - **Accurate damage indicators** — MythicLib's floating damage numbers show the health the target really lost after armour, absorption hearts included, one tick after the hit. Regeneration, other heals and other damage in that tick don't move it, a killing blow shows the health that was left, and a hit that took nothing shows nothing (`accurate-damage-indicators`).
 - **Cross-plugin statistics** — records supported vehicle, character, crafting, skill, and faction events for staff queries.
 

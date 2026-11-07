@@ -21,6 +21,7 @@ import net.tfminecraft.tfmccore.commands.CoreTabCompletion;
 import net.tfminecraft.tfmccore.commands.SilentPermissionCommand;
 import net.tfminecraft.tfmccore.golem.GolemListener;
 import net.tfminecraft.tfmccore.health.MaxHealthRounder;
+import net.tfminecraft.tfmccore.health.WoundedHealing;
 import net.tfminecraft.tfmccore.indicators.RealDamageIndicators;
 import net.tfminecraft.tfmccore.movement.SoulSandStride;
 import net.tfminecraft.tfmccore.loader.ConfigLoader;
@@ -84,6 +85,7 @@ public class TFMCCore extends JavaPlugin{
     private BookCopyUnblocker bookCopies;
     private MaxHealthRounder maxHealth;
     private SoulSandStride soulSand;
+    private WoundedHealing wounded;
 
     @Override
     public void onEnable() {
@@ -192,6 +194,7 @@ public class TFMCCore extends JavaPlugin{
         if (bookCopies != null) bookCopies.unwrap();
         if (maxHealth != null) maxHealth.close();
         if (soulSand != null) soulSand.close();
+        if (wounded != null) wounded.close();
         if (stoneListener != null) {
             stoneListener.refundAll();
         }
@@ -353,6 +356,11 @@ public class TFMCCore extends JavaPlugin{
             maxHealth = MaxHealthRounder.register(this);
             RealDamageIndicators.register(this, new File(
                     getServer().getPluginManager().getPlugin("MythicLib").getDataFolder(), "indicators.yml"));
+        }
+        // The Wounded status is a MythicMobs aura; the regeneration cut is a MythicLib stat modifier
+        if (getServer().getPluginManager().isPluginEnabled("MythicMobs")
+                && getServer().getPluginManager().isPluginEnabled("MythicLib")) {
+            wounded = WoundedHealing.register(this);
         }
     }
 

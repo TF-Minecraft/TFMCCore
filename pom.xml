@@ -114,6 +114,12 @@
         </dependency>
         <dependency>
             <groupId>local</groupId>
+            <artifactId>MythicMobs</artifactId>
+            <version>5.13.1-SNAPSHOT-88530541-tfmc-6df72b5b331d</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>local</groupId>
             <artifactId>ItemsAdder</artifactId>
             <version>4.0.18-tfmc-5a01b37bd744</version>
             <scope>provided</scope>

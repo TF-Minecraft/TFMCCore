@@ -458,6 +458,33 @@ class PluginLifecycleCoverageTest {
   }
 
   @ParameterizedTest
+  @ValueSource(strings = {"both", "mythicmobs-only", "mythiclib-only", "neither"})
+  void woundedHealingNeedsMythicMobsAndMythicLibAndClosesOnDisable(String plugins) throws Exception {
+    boolean mythicMobs = plugins.equals("both") || plugins.equals("mythicmobs-only");
+    boolean mythicLib = plugins.equals("both") || plugins.equals("mythiclib-only");
+    try (Rig rig = new Rig();
+        var wounded = mockStatic(net.tfminecraft.tfmccore.health.WoundedHealing.class);
+        var rounders = mockStatic(net.tfminecraft.tfmccore.health.MaxHealthRounder.class);
+        var indicators = mockStatic(net.tfminecraft.tfmccore.indicators.RealDamageIndicators.class)) {
+      var healing = mock(net.tfminecraft.tfmccore.health.WoundedHealing.class);
+      wounded.when(() -> net.tfminecraft.tfmccore.health.WoundedHealing.register(rig.plugin)).thenReturn(healing);
+      when(rig.manager.isPluginEnabled("MythicMobs")).thenReturn(mythicMobs);
+      when(rig.manager.isPluginEnabled("MythicLib")).thenReturn(mythicLib);
+      Plugin mythicLibPlugin = mock(Plugin.class);
+      when(mythicLibPlugin.getDataFolder()).thenReturn(new File("MythicLib"));
+      when(rig.manager.getPlugin("MythicLib")).thenReturn(mythicLibPlugin);
+
+      rig.plugin.onEnable();
+      rig.plugin.onDisable();
+
+      boolean loads = mythicMobs && mythicLib;
+      wounded.verify(
+          () -> net.tfminecraft.tfmccore.health.WoundedHealing.register(rig.plugin), times(loads ? 1 : 0));
+      verify(healing, times(loads ? 1 : 0)).close();
+    }
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"off", "absent", "standard", "multipart"})
   void requiredPackGateIsOptInAndOwnsManualSendsWhileLoading(String scenario) throws Exception {
     try (Rig rig = new Rig()) {

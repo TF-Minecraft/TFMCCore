@@ -40,6 +40,10 @@ soul-sand-stride: false
 # tick later; a killing blow shows the health that was left, a hit that took nothing shows
 # nothing. false shows MythicLib's own number, which leaves armour out.
 accurate-damage-indicators: true
+# Healing on anyone under the Wounded status (a MythicMobs aura that TFMC class skills give)
+# is multiplied by this: lifesteal, skill heals, regeneration and food alike. Absorption
+# shields are not healing. 1 turns it off; it needs MythicMobs and MythicLib.
+wounded-healing-multiplier: 0.5
 
 drops-debug: true
 
