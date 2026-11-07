@@ -17,8 +17,8 @@ import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import io.lumine.mythic.bukkit.BukkitAdapter;
 import io.lumine.mythic.bukkit.MythicBukkit;
-import io.lumine.mythic.core.skills.auras.AuraRegistry;
 import io.lumine.mythic.lib.api.player.MMOPlayerData;
 import io.lumine.mythic.lib.api.stat.StatInstance;
 import io.lumine.mythic.lib.api.stat.modifier.StatModifier;
@@ -38,6 +38,11 @@ import net.tfminecraft.tfmccore.cache.Cache;
  * players this also scales the two MythicLib stats it reads ({@link #REGEN_STATS}) by the same
  * multiplier, checked every {@link #PERIOD} ticks. The modifier is taken off when the status ends,
  * at quit and on disable. Absorption shields are not healing and stay as they are.
+ *
+ * <p>Regeneration is cut once only because MMOCore 1.13.1 never registers MythicLib's
+ * {@code HealthUpdateEventSupplier}, so its bridge from regeneration to {@link EntityRegainHealthEvent}
+ * never runs. Re-check this after an MMOCore update: with that bridge, the stat modifier and the
+ * listener would both cut regeneration.
  */
 public final class WoundedHealing implements Listener {
 
@@ -50,9 +55,9 @@ public final class WoundedHealing implements Listener {
     /** 5 ticks: the regeneration cut starts and ends within a quarter of a second of the status. */
     static final long PERIOD = 5L;
 
-    /** Scales a player's regeneration stats; factor 1 takes the scaling off. */
+    /** Scales a player's regeneration stats; factor 1 takes the scaling off. False if it could not yet. */
     interface RegenScale {
-        void set(Player player, double factor);
+        boolean set(Player player, double factor);
     }
 
     private final Predicate<Entity> wounded;
@@ -79,24 +84,26 @@ public final class WoundedHealing implements Listener {
         return healing;
     }
 
+    /** Read-only: getAuraRegistry would create and keep a registry for every entity it is asked about. */
     static boolean hasAura(Entity entity) {
-        AuraRegistry auras = MythicBukkit.inst().getSkillManager().getAuraManager()
-                .getAuraRegistry(entity.getUniqueId());
-        return auras != null && auras.hasAura(AURA);
+        return MythicBukkit.inst().getSkillManager().getAuraManager().getHasAura(BukkitAdapter.adapt(entity), AURA);
     }
 
-    static void scaleRegen(Player player, double factor) {
+    static boolean scaleRegen(Player player, double factor) {
         MMOPlayerData data = MMOPlayerData.getOrNull(player);
-        if (data == null) return;
+        if (data == null) return false; // MythicLib has not loaded the player yet; the next tick tries again
         for (String stat : REGEN_STATS) {
             StatInstance instance = data.getStatMap().getInstance(stat);
             instance.remove(KEY);
             if (factor < 1.0) instance.addModifier(new StatModifier(KEY, stat, (factor - 1.0) * 100.0, ModifierType.COMPOUND));
         }
+        return true;
     }
 
     private double factor() {
-        return Math.max(0.0, Math.min(1.0, multiplier.getAsDouble()));
+        double value = multiplier.getAsDouble();
+        if (Double.isNaN(value)) return 1.0;
+        return Math.max(0.0, Math.min(1.0, value));
     }
 
     /** HIGH: after plugins that change heals at NORMAL, before MONITOR listeners read the result. */
@@ -117,8 +124,10 @@ public final class WoundedHealing implements Listener {
             UUID id = player.getUniqueId();
             online.add(id);
             boolean cut = factor < 1.0 && wounded.test(player);
-            if (cut && (scaled.add(id) || changed)) regen.set(player, factor);
-            else if (!cut && scaled.remove(id)) regen.set(player, 1.0);
+            if (cut && (!scaled.contains(id) || changed)) {
+                if (regen.set(player, factor)) scaled.add(id);
+                else scaled.remove(id); // not applied: try again on the next tick
+            } else if (!cut && scaled.remove(id)) regen.set(player, 1.0);
         }
         scaled.retainAll(online);
     }

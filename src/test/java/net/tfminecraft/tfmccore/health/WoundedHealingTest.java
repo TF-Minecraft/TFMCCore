@@ -25,10 +25,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
+import io.lumine.mythic.api.adapters.AbstractEntity;
+import io.lumine.mythic.bukkit.BukkitAdapter;
 import io.lumine.mythic.bukkit.MythicBukkit;
 import io.lumine.mythic.core.skills.SkillExecutor;
 import io.lumine.mythic.core.skills.auras.AuraExecutor;
-import io.lumine.mythic.core.skills.auras.AuraRegistry;
 import io.lumine.mythic.lib.api.player.MMOPlayerData;
 import io.lumine.mythic.lib.api.stat.StatInstance;
 import io.lumine.mythic.lib.api.stat.StatMap;
@@ -41,7 +42,8 @@ class WoundedHealingTest {
   private final UUID id = UUID.randomUUID();
   private final List<Player> online = new ArrayList<>(List.of(player));
   private final List<String> regenCalls = new ArrayList<>();
-  private final WoundedHealing.RegenScale regen = (p, factor) -> regenCalls.add(p.getName() + "=" + factor);
+  private boolean regenLoaded = true;
+  private final WoundedHealing.RegenScale regen = (p, factor) -> regenCalls.add(p.getName() + "=" + factor) && regenLoaded;
 
   WoundedHealingTest() {
     when(player.getUniqueId()).thenReturn(id);
@@ -102,6 +104,47 @@ class WoundedHealingTest {
     EntityRegainHealthEvent above = heal(6.0);
     healing(entity -> true, 3.0).onRegainHealth(above);
     assertEquals(6.0, above.getAmount(), 1e-9);
+  }
+
+  @Test
+  void aNaNMultiplierTurnsItOff() {
+    EntityRegainHealthEvent event = heal(6.0);
+    WoundedHealing healing = healing(entity -> true, Double.NaN);
+
+    healing.onRegainHealth(event);
+    healing.tick();
+
+    assertEquals(6.0, event.getAmount(), 1e-9);
+    assertTrue(regenCalls.isEmpty());
+  }
+
+  @Test
+  void aPlayerMythicLibHasNotLoadedIsRetriedOnTheNextTick() {
+    WoundedHealing healing = healing(entity -> true, 0.5);
+    regenLoaded = false;
+
+    healing.tick();
+    regenLoaded = true;
+    healing.tick();
+    healing.tick();
+
+    assertEquals(List.of("P=0.5", "P=0.5"), regenCalls, "retried once, then kept");
+  }
+
+  @Test
+  void aChangedMultiplierThatCannotApplyYetIsRetried() {
+    double[] multiplier = {0.5};
+    WoundedHealing healing = new WoundedHealing(entity -> true, () -> multiplier[0], () -> online, regen);
+
+    healing.tick();
+    multiplier[0] = 0.25;
+    regenLoaded = false;
+    healing.tick();
+    regenLoaded = true;
+    healing.tick();
+    healing.tick();
+
+    assertEquals(List.of("P=0.5", "P=0.25", "P=0.25"), regenCalls);
   }
 
   @Test
@@ -168,9 +211,11 @@ class WoundedHealingTest {
     doReturn(List.of()).when(server).getOnlinePlayers();
     Cache.woundedHealingMultiplier = 0.25;
 
-    try (var mythic = mockStatic(MythicBukkit.class)) {
-      AuraRegistry auras = mockAuras(mythic, id);
-      when(auras.hasAura(WoundedHealing.AURA)).thenReturn(true);
+    try (var mythic = mockStatic(MythicBukkit.class); var adapter = mockStatic(BukkitAdapter.class)) {
+      AuraExecutor auras = mockAuras(mythic);
+      AbstractEntity adapted = mock(AbstractEntity.class);
+      adapter.when(() -> BukkitAdapter.adapt((Entity) player)).thenReturn(adapted); // the Entity overload, as in hasAura
+      when(auras.getHasAura(adapted, WoundedHealing.AURA)).thenReturn(true);
 
       WoundedHealing healing = WoundedHealing.register(plugin);
       EntityRegainHealthEvent event = heal(8.0);
@@ -186,27 +231,17 @@ class WoundedHealingTest {
   }
 
   @Test
-  void theAuraLookupNeedsTheWoundedAura() {
-    try (var mythic = mockStatic(MythicBukkit.class)) {
-      AuraRegistry auras = mockAuras(mythic, id);
-      when(auras.hasAura(WoundedHealing.AURA)).thenReturn(false);
+  void theAuraLookupIsTheReadOnlyHasAura() {
+    try (var mythic = mockStatic(MythicBukkit.class); var adapter = mockStatic(BukkitAdapter.class)) {
+      AuraExecutor auras = mockAuras(mythic);
+      AbstractEntity adapted = mock(AbstractEntity.class);
+      adapter.when(() -> BukkitAdapter.adapt((Entity) player)).thenReturn(adapted); // the Entity overload, as in hasAura
+      when(auras.getHasAura(adapted, WoundedHealing.AURA)).thenReturn(true, false);
 
+      assertTrue(WoundedHealing.hasAura(player));
       assertFalse(WoundedHealing.hasAura(player));
-    }
-  }
-
-  @Test
-  void anEntityWithNoAurasIsNotWounded() {
-    try (var mythic = mockStatic(MythicBukkit.class)) {
-      MythicBukkit inst = mock(MythicBukkit.class);
-      SkillExecutor skills = mock(SkillExecutor.class);
-      AuraExecutor manager = mock(AuraExecutor.class);
-      mythic.when(MythicBukkit::inst).thenReturn(inst);
-      when(inst.getSkillManager()).thenReturn(skills);
-      when(skills.getAuraManager()).thenReturn(manager);
-      when(manager.getAuraRegistry(id)).thenReturn(null);
-
-      assertFalse(WoundedHealing.hasAura(player));
+      verify(auras, never()).getAuraRegistry(any(UUID.class));
+      verify(auras, never()).getAuraRegistry(any(AbstractEntity.class));
     }
   }
 
@@ -224,7 +259,7 @@ class WoundedHealingTest {
         instances.add(instance);
       }
 
-      WoundedHealing.scaleRegen(player, 0.5);
+      assertTrue(WoundedHealing.scaleRegen(player, 0.5));
       for (StatInstance instance : instances) {
         verify(instance).remove(WoundedHealing.KEY);
         ArgumentCaptor<StatModifier> modifier = ArgumentCaptor.forClass(StatModifier.class);
@@ -247,19 +282,17 @@ class WoundedHealingTest {
     try (var players = mockStatic(MMOPlayerData.class)) {
       players.when(() -> MMOPlayerData.getOrNull(player)).thenReturn(null);
 
-      assertDoesNotThrow(() -> WoundedHealing.scaleRegen(player, 0.5));
+      assertFalse(WoundedHealing.scaleRegen(player, 0.5));
     }
   }
 
-  private static AuraRegistry mockAuras(MockedStatic<MythicBukkit> mythic, UUID id) {
+  private static AuraExecutor mockAuras(MockedStatic<MythicBukkit> mythic) {
     MythicBukkit inst = mock(MythicBukkit.class);
     SkillExecutor skills = mock(SkillExecutor.class);
-    AuraExecutor manager = mock(AuraExecutor.class);
-    AuraRegistry auras = mock(AuraRegistry.class);
+    AuraExecutor auras = mock(AuraExecutor.class);
     mythic.when(MythicBukkit::inst).thenReturn(inst);
     when(inst.getSkillManager()).thenReturn(skills);
-    when(skills.getAuraManager()).thenReturn(manager);
-    when(manager.getAuraRegistry(id)).thenReturn(auras);
+    when(skills.getAuraManager()).thenReturn(auras);
     return auras;
   }
 }
