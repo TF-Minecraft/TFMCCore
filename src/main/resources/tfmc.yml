@@ -176,6 +176,29 @@ track-messages:
   removed: "<green>You are no longer on the <yellow><track></yellow> track."
   failed: "<red>Your status could not be changed."
 
+# /tfmc credits is deliberately hidden: it is not in the command tree, so it is never suggested,
+# tab-completed or listed. Each section lists everyone holding one of its LuckPerms tracks' groups
+# globally (on duty or not) and everyone it ever listed (credits-roster.yml), each player once in
+# their highest section. Then extra (credits other licences ask for, and anyone else) and footer.
+# exclude: names never listed. Members are looked up at most every cache-seconds.
+credits:
+  cache-seconds: 300
+  header: "<dark_gray><st>                 </st></dark_gray> <#b854f2>❖</#b854f2> <#f4c542><b>TFMC</b></#f4c542> <#d972f3><b>Credits</b></#d972f3> <#b854f2>❖</#b854f2> <dark_gray><st>                 </st>"
+  sections:
+    staff:
+      title: "<#f1c40f><b>Staff</b>"
+      tracks: [staff]
+    helpers:
+      title: "<#ff00cc><b>Helpers</b>"
+      tracks: [helper+, helper]
+  name: "<gray><name>"
+  separator: "<dark_gray> • "
+  exclude: []
+  extra:
+    - "<#5fb8ff><b>Music</b>"
+    - "<gray>SOUND AIRYLUVS by ISAo"
+  footer: "<dark_gray><st>                                                               </st>"
+
 # /tfmc poster <name> runs the command as the player.
 posters:
   Zerratoris1: "images create https://cdn.imgchest.com/files/yxkczwm8rq7.jpg 42.74553571428"

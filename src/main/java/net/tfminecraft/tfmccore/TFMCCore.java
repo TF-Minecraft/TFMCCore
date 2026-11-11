@@ -6,7 +6,9 @@ import java.util.Set;
 import java.util.Random;
 
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -49,6 +51,7 @@ import net.tfminecraft.tfmccore.stones.StoneItems;
 import net.tfminecraft.tfmccore.stones.StoneListener;
 import net.tfminecraft.tfmccore.tfmc.BukkitTfmcActions;
 import net.tfminecraft.tfmccore.tfmc.TfmcCommand;
+import net.tfminecraft.tfmccore.tfmc.TfmcCreditsRoster;
 import net.tfminecraft.tfmccore.tfmc.TfmcConfig;
 import net.tfminecraft.tfmccore.tfmc.TfmcCooldowns;
 import net.tfminecraft.tfmccore.whistle.WhistleConfigLoader;
@@ -174,13 +177,23 @@ public class TFMCCore extends JavaPlugin{
             cooldowns.save();
         }
         TfmcCommand tfmc = tfmcCommand = new TfmcCommand(tfmcConfig, cooldowns, new BukkitTfmcActions(this),
-                Clock.systemDefaultZone(), new Random(), task -> getServer().getScheduler().runTask(this, task));
+                Clock.systemDefaultZone(), new Random(), task -> getServer().getScheduler().runTask(this, task),
+                new TfmcCreditsRoster(new File(getDataFolder(), "credits-roster.yml")));
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 event -> event.registrar().register(tfmc.build(), "TFMC player commands"));
         getServer().getPluginManager().registerEvents(new Listener() {
             @EventHandler
             public void onQuit(PlayerQuitEvent event) {
                 tfmc.onQuit(event.getPlayer());
+            }
+
+            // /tfmc credits is kept out of the command tree so nobody is shown it; answer it here
+            @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+            public void onCredits(PlayerCommandPreprocessEvent event) {
+                if (TfmcCommand.isCredits(event.getMessage())) {
+                    event.setCancelled(true);
+                    tfmc.credits(event.getPlayer());
+                }
             }
         }, this);
     }

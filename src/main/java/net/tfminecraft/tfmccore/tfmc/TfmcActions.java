@@ -1,6 +1,7 @@
 package net.tfminecraft.tfmccore.tfmc;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -50,6 +51,12 @@ public interface TfmcActions {
 
     /** Moves the player one step along a LuckPerms track they are already on. */
     CompletableFuture<TrackStep> stepTrack(Player player, String track, boolean promote);
+
+    /**
+     * For each track, the names of every player (online or not) holding one of its groups
+     * globally, on duty or not. Groups held only in a server context do not count.
+     */
+    CompletableFuture<Map<String, List<String>>> trackMembers(List<String> tracks);
 
     /** Lets the player fly at {@code speed} and returns their previous flight settings. */
     FlightState startFlight(Player player, float speed);
