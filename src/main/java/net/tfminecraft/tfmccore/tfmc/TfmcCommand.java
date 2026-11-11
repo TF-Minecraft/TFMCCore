@@ -3,6 +3,7 @@ package net.tfminecraft.tfmccore.tfmc;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -19,6 +20,7 @@ import java.util.function.Supplier;
 import java.util.logging.Logger;
 import java.util.random.RandomGenerator;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -35,6 +37,7 @@ import com.mojang.brigadier.tree.LiteralCommandNode;
 
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
@@ -64,12 +67,20 @@ public final class TfmcCommand {
     private final RandomGenerator random;
     private final Executor mainThread;
     private final Map<UUID, ParrotFlight> parrots = new ConcurrentHashMap<>();
+    private final TfmcCreditsRoster creditRoster;
     private volatile CompletableFuture<Map<String, List<String>>> creditMembers;
     private volatile long creditMembersAt;
 
     /** {@code mainThread} runs LuckPerms completions, which arrive on LuckPerms worker threads. */
     public TfmcCommand(TfmcConfig config, TfmcCooldowns cooldowns, TfmcActions actions, Clock clock,
             RandomGenerator random, Executor mainThread) {
+        this(config, cooldowns, actions, clock, random, mainThread, new TfmcCreditsRoster(null));
+    }
+
+    /** {@code creditRoster} remembers everyone /tfmc credits has listed. */
+    public TfmcCommand(TfmcConfig config, TfmcCooldowns cooldowns, TfmcActions actions, Clock clock,
+            RandomGenerator random, Executor mainThread, TfmcCreditsRoster creditRoster) {
+        this.creditRoster = creditRoster;
         this.mainThread = mainThread;
         this.config = config;
         this.cooldowns = cooldowns;
@@ -399,8 +410,8 @@ public final class TfmcCommand {
                         () -> player.sendMessage(MINI.deserialize("<red>There is no poster called <name>.", Placeholder.unparsed("name", name))));
     }
 
-    /** One block of /tfmc credits: a title and the LuckPerms tracks whose members it lists. */
-    record CreditSection(String title, List<String> tracks) {}
+    /** One block of /tfmc credits: its key, title and the LuckPerms tracks whose members it lists. */
+    record CreditSection(String key, String title, List<String> tracks) {}
 
     private static final Pattern CREDITS = Pattern.compile("/(?:tfmccore:)?tfmc\\s+credits\\s*", Pattern.CASE_INSENSITIVE);
 
@@ -417,19 +428,20 @@ public final class TfmcCommand {
         List<CreditSection> sections = new ArrayList<>();
         for (String key : config.keys("credits.sections")) {
             String base = "credits.sections." + key;
-            sections.add(new CreditSection(config.string(base + ".title", key), config.lines(base + ".tracks")));
+            sections.add(new CreditSection(key, config.string(base + ".title", key), config.lines(base + ".tracks")));
         }
         if (sections.isEmpty()) {
-            sections.add(new CreditSection("<red><b>Staff</b>", List.of("staff")));
-            sections.add(new CreditSection("<gold><b>Helpers</b>", List.of("helper+", "helper")));
+            sections.add(new CreditSection("staff", "<#f1c40f><b>Staff</b>", List.of("staff")));
+            sections.add(new CreditSection("helpers", "<#ff00cc><b>Helpers</b>", List.of("helper+", "helper")));
         }
         return sections;
     }
 
     /**
-     * Shows the credits: everyone on each section's tracks (each player once, in their highest
-     * section), then the extra lines. Members are looked up at most every credits.cache-seconds,
-     * since each lookup searches LuckPerms storage.
+     * Shows the credits: everyone on each section's tracks and everyone the roster remembers (so
+     * those who step down stay listed), each player once in their highest section; then the extra
+     * lines. Members are looked up at most every credits.cache-seconds, since each lookup searches
+     * LuckPerms storage.
      */
     public void credits(Player player) {
         List<CreditSection> sections = creditSections();
@@ -450,27 +462,54 @@ public final class TfmcCommand {
     }
 
     private void showCredits(Player player, List<CreditSection> sections, Map<String, List<String>> members) {
-        Set<String> shown = new HashSet<>();
-        config.lines("credits.exclude").forEach(name -> shown.add(name.toLowerCase(Locale.ROOT)));
-        send(player, "credits.header");
+        Map<String, Integer> ranks = new HashMap<>();
+        for (int i = 0; i < sections.size(); i++) {
+            ranks.putIfAbsent(sections.get(i).key(), i);
+        }
+        // Remember who is on the tracks now; the roster keeps their highest section and best spelling
+        boolean changed = false;
         for (CreditSection section : sections) {
-            List<String> names = new ArrayList<>();
             for (String track : section.tracks()) {
                 for (String name : members.getOrDefault(track, List.of())) {
-                    if (shown.add(name.toLowerCase(Locale.ROOT))) {
-                        names.add(name);
-                    }
+                    changed |= creditRoster.record(name, section.key(), ranks);
                 }
             }
+        }
+        if (changed) {
+            creditRoster.save();
+        }
+        Set<String> excluded = new HashSet<>();
+        config.lines("credits.exclude").forEach(name -> excluded.add(name.toLowerCase(Locale.ROOT)));
+        Map<String, TfmcCreditsRoster.Entry> roster = creditRoster.players();
+
+        send(player, "credits.header");
+        String nameFormat = config.string("credits.name", "<gray><name>");
+        String separator = config.string("credits.separator", "<dark_gray>, ");
+        for (int i = 0; i < sections.size(); i++) {
+            CreditSection section = sections.get(i);
+            // The roster is in the order people joined; the top section keeps that, the rest are alphabetical
+            List<String> names = roster.entrySet().stream()
+                    .filter(entry -> entry.getValue().section().equals(section.key()) && !excluded.contains(entry.getKey()))
+                    .map(entry -> entry.getValue().name())
+                    .collect(Collectors.toCollection(ArrayList::new));
             if (names.isEmpty()) {
                 continue;
             }
-            names.sort(String.CASE_INSENSITIVE_ORDER);
+            if (i > 0) {
+                names.sort(String.CASE_INSENSITIVE_ORDER);
+            }
+            Component line = Component.empty();
+            for (int n = 0; n < names.size(); n++) {
+                if (n > 0) {
+                    line = line.append(MINI.deserialize(separator));
+                }
+                line = line.append(MINI.deserialize(nameFormat, Placeholder.unparsed("name", names.get(n))));
+            }
             player.sendMessage(MINI.deserialize(section.title()));
-            player.sendMessage(MINI.deserialize(config.string("credits.names", "<gray><names>"),
-                    Placeholder.unparsed("names", String.join(", ", names))));
+            player.sendMessage(line);
         }
         send(player, "credits.extra");
+        send(player, "credits.footer");
     }
 
     private void update(Player player, CompletableFuture<Void> change, String successPath) {

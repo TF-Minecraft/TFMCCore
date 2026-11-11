@@ -177,25 +177,27 @@ track-messages:
   failed: "<red>Your status could not be changed."
 
 # /tfmc credits is deliberately hidden: it is not in the command tree, so it is never suggested,
-# tab-completed or listed. It shows header, then each section (highest first) with everyone holding
-# one of its LuckPerms tracks' groups globally, on duty or not, each player once in their highest
-# section; then extra (credits other licences ask for, and anyone else). exclude: names never listed
-# (bots, test accounts). Members are looked up at most every cache-seconds.
+# tab-completed or listed. Each section lists everyone holding one of its LuckPerms tracks' groups
+# globally (on duty or not) and everyone it ever listed (credits-roster.yml), each player once in
+# their highest section. Then extra (credits other licences ask for, and anyone else) and footer.
+# exclude: names never listed. Members are looked up at most every cache-seconds.
 credits:
   cache-seconds: 300
-  header: "<dark_red><b>TFMC Credits</b>"
+  header: "<dark_gray><st>                 </st></dark_gray> <#b854f2>❖</#b854f2> <#f4c542><b>TFMC</b></#f4c542> <#d972f3><b>Credits</b></#d972f3> <#b854f2>❖</#b854f2> <dark_gray><st>                 </st>"
   sections:
     staff:
-      title: "<red><b>Staff</b>"
+      title: "<#f1c40f><b>Staff</b>"
       tracks: [staff]
     helpers:
-      title: "<gold><b>Helpers</b>"
+      title: "<#ff00cc><b>Helpers</b>"
       tracks: [helper+, helper]
-  names: "<gray><names>"
+  name: "<gray><name>"
+  separator: "<dark_gray> • "
   exclude: []
   extra:
-    - "<yellow><b>Music</b>"
-    - "<gray>SOUND AIRYLUVS by ISAo <click:open_url:'https://airyluvs.com/'><u>airyluvs.com</u></click>"
+    - "<#5fb8ff><b>Music</b>"
+    - "<gray>SOUND AIRYLUVS by ISAo"
+  footer: "<dark_gray><st>                                                               </st>"
 
 # /tfmc poster <name> runs the command as the player.
 posters:

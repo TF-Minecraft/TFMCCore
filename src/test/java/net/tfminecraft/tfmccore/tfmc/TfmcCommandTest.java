@@ -111,26 +111,46 @@ class TfmcCommandTest {
         assertFalse(visible(staff).contains("credits"), "Never suggested, not even to staff");
         assertThrows(CommandSyntaxException.class, () -> run(staff, "tfmc credits"), "Answered before the tree, not by it");
 
-        String yaml = Files.readString(Path.of("src/main/resources/tfmc.yml"));
-        config.loadFromString(yaml.replace("exclude: []", "exclude: [TestBot]"));
-        members.put("staff", List.of("Zed", "Alice"));
+        credits("exclude: []", "exclude: [TestBot, AltOfZed]");
+        members.put("staff", List.of("Zed", "Alice", "altofzed"));
         members.put("helper+", List.of("alice", "Bob"));
         members.put("helper", List.of("carl", "Bob", "testbot"));
         TestPlayer steve = player("Steve");
         command.credits(steve.player);
         assertTrue(steve.messages.isEmpty(), "Shown on the main thread");
         runMainThread();
-        assertEquals(List.of("TFMC Credits", "Staff", "Alice, Zed", "Helpers", "Bob, carl", "Music",
-                "SOUND AIRYLUVS by ISAo airyluvs.com"), steve.messages);
+        assertEquals(List.of("\u2756 TFMC Credits \u2756", "Staff", "Zed \u2022 Alice", "Helpers", "Bob \u2022 carl", "Music", "SOUND AIRYLUVS by ISAo", ""),
+                trimmed(steve));
+        assertFalse(steve.messages.stream().anyMatch(line -> line.contains("http") || line.contains(".com")), "No links");
 
         // Looked up once per cache-seconds, so the second call still shows the first list
-        members.put("helper+", List.of("Zed"));
-        members.put("helper", List.of());
+        members.put("helper", List.of("Dana"));
         steve.messages.clear();
         command.credits(steve.player);
         runMainThread();
         assertEquals(1, memberLookups);
-        assertTrue(steve.messages.contains("Bob, carl"), "Still the cached list");
+        assertTrue(steve.messages.contains("Bob \u2022 carl"), "Still the cached list");
+    }
+
+    @Test
+    void formerStaffAndHelpersStayInTheCreditsInTheHighestSectionTheyReached() throws Exception {
+        credits("cache-seconds: 300", "cache-seconds: 0");
+        members.put("staff", List.of("Erin", "Alice"));
+        members.put("helper", List.of("Bob", "Carl"));
+        TestPlayer steve = player("Steve");
+        command.credits(steve.player);
+        runMainThread();
+        // Next lookup: Alice and Carl stepped down, Bob became staff, Dana joined the helpers
+        clock += 1;
+        members.clear();
+        members.put("staff", List.of("Erin", "bob"));
+        members.put("helper", List.of("Dana"));
+        steve.messages.clear();
+        command.credits(steve.player);
+        runMainThread();
+        assertEquals(2, memberLookups);
+        assertEquals(List.of("\u2756 TFMC Credits \u2756", "Staff", "Erin \u2022 Alice \u2022 Bob", "Helpers", "Carl \u2022 Dana", "Music",
+                "SOUND AIRYLUVS by ISAo", ""), trimmed(steve));
     }
 
     @Test
@@ -139,7 +159,7 @@ class TfmcCommandTest {
         TestPlayer steve = player("Steve");
         command.credits(steve.player);
         runMainThread();
-        assertEquals(List.of("TFMC Credits", "Music", "SOUND AIRYLUVS by ISAo airyluvs.com"), steve.messages);
+        assertEquals(List.of("\u2756 TFMC Credits \u2756", "Music", "SOUND AIRYLUVS by ISAo", ""), trimmed(steve));
         membersFailure = null;
         members.put("staff", List.of("Alice"));
         steve.messages.clear();
@@ -148,10 +168,46 @@ class TfmcCommandTest {
         assertEquals(2, memberLookups);
         assertTrue(steve.messages.contains("Alice"));
 
-        // Without a credits section: staff, then helpers
+        // Without a credits section: staff, then helpers, in the TAB rank colours
         config.loadFromString("messages: {}");
-        assertEquals(List.of(new TfmcCommand.CreditSection("<red><b>Staff</b>", List.of("staff")),
-                new TfmcCommand.CreditSection("<gold><b>Helpers</b>", List.of("helper+", "helper"))), command.creditSections());
+        assertEquals(List.of(new TfmcCommand.CreditSection("staff", "<#f1c40f><b>Staff</b>", List.of("staff")),
+                new TfmcCommand.CreditSection("helpers", "<#ff00cc><b>Helpers</b>", List.of("helper+", "helper"))),
+                command.creditSections());
+    }
+
+    /** Loads the shipped tfmc.yml with each pair of strings replaced (old, new, old, new...). */
+    private void credits(String... replacements) throws Exception {
+        String yaml = Files.readString(Path.of("src/main/resources/tfmc.yml"));
+        for (int i = 0; i < replacements.length; i += 2) {
+            assertEquals(1, yaml.split(java.util.regex.Pattern.quote(replacements[i]), -1).length - 1, replacements[i]);
+            yaml = yaml.replace(replacements[i], replacements[i + 1]);
+        }
+        config.loadFromString(yaml);
+    }
+
+    @Test
+    void theCreditsRosterIsSavedAndReadBack(@org.junit.jupiter.api.io.TempDir Path dir) {
+        java.io.File file = dir.resolve("credits-roster.yml").toFile();
+        Map<String, Integer> ranks = Map.of("staff", 0, "helpers", 1);
+        TfmcCreditsRoster roster = new TfmcCreditsRoster(file);
+        assertTrue(roster.record("bob", "helpers", ranks));
+        assertTrue(roster.record("Cy", "helpers", ranks));
+        assertTrue(roster.record("Ann", "staff", ranks));
+        assertTrue(roster.record("Bob", "helpers", ranks), "A spelling with capitals wins");
+        assertFalse(roster.record("bob", "helpers", ranks), "and is kept over a lowercase one");
+        assertTrue(roster.record("bob", "staff", ranks));
+        assertFalse(roster.record("Bob", "helpers", ranks), "Never moved down");
+        assertEquals(List.of("cy", "ann", "bob"), List.copyOf(roster.players().keySet()), "Moving up puts them last");
+        roster.save();
+        TfmcCreditsRoster read = new TfmcCreditsRoster(file);
+        assertEquals(List.of("cy", "ann", "bob"), List.copyOf(read.players().keySet()));
+        assertEquals(new TfmcCreditsRoster.Entry("staff", "Bob"), read.players().get("bob"));
+        assertTrue(new TfmcCreditsRoster(dir.resolve("none.yml").toFile()).players().isEmpty());
+        new TfmcCreditsRoster(null).save();
+    }
+
+    private static List<String> trimmed(TestPlayer player) {
+        return player.messages.stream().map(String::trim).toList();
     }
 
     @Test

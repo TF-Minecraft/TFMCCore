@@ -51,6 +51,7 @@ import net.tfminecraft.tfmccore.stones.StoneItems;
 import net.tfminecraft.tfmccore.stones.StoneListener;
 import net.tfminecraft.tfmccore.tfmc.BukkitTfmcActions;
 import net.tfminecraft.tfmccore.tfmc.TfmcCommand;
+import net.tfminecraft.tfmccore.tfmc.TfmcCreditsRoster;
 import net.tfminecraft.tfmccore.tfmc.TfmcConfig;
 import net.tfminecraft.tfmccore.tfmc.TfmcCooldowns;
 import net.tfminecraft.tfmccore.whistle.WhistleConfigLoader;
@@ -176,7 +177,8 @@ public class TFMCCore extends JavaPlugin{
             cooldowns.save();
         }
         TfmcCommand tfmc = tfmcCommand = new TfmcCommand(tfmcConfig, cooldowns, new BukkitTfmcActions(this),
-                Clock.systemDefaultZone(), new Random(), task -> getServer().getScheduler().runTask(this, task));
+                Clock.systemDefaultZone(), new Random(), task -> getServer().getScheduler().runTask(this, task),
+                new TfmcCreditsRoster(new File(getDataFolder(), "credits-roster.yml")));
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 event -> event.registrar().register(tfmc.build(), "TFMC player commands"));
         getServer().getPluginManager().registerEvents(new Listener() {
