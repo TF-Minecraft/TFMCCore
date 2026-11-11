@@ -3,10 +3,12 @@ package net.tfminecraft.tfmccore.tfmc;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -62,6 +64,8 @@ public final class TfmcCommand {
     private final RandomGenerator random;
     private final Executor mainThread;
     private final Map<UUID, ParrotFlight> parrots = new ConcurrentHashMap<>();
+    private volatile CompletableFuture<Map<String, List<String>>> creditMembers;
+    private volatile long creditMembersAt;
 
     /** {@code mainThread} runs LuckPerms completions, which arrive on LuckPerms worker threads. */
     public TfmcCommand(TfmcConfig config, TfmcCooldowns cooldowns, TfmcActions actions, Clock clock,
@@ -393,6 +397,80 @@ public final class TfmcCommand {
                 .ifPresentOrElse(
                         poster -> actions.playerCommand(player, poster.getValue()),
                         () -> player.sendMessage(MINI.deserialize("<red>There is no poster called <name>.", Placeholder.unparsed("name", name))));
+    }
+
+    /** One block of /tfmc credits: a title and the LuckPerms tracks whose members it lists. */
+    record CreditSection(String title, List<String> tracks) {}
+
+    private static final Pattern CREDITS = Pattern.compile("/(?:tfmccore:)?tfmc\\s+credits\\s*", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Whether a typed command is /tfmc credits. That subcommand is deliberately not in the command
+     * tree, so the client never suggests or completes it; TFMCCore answers it before Brigadier does.
+     */
+    public static boolean isCredits(String message) {
+        return message != null && CREDITS.matcher(message.trim()).matches();
+    }
+
+    /** The sections in tfmc.yml credits.sections, highest first; staff then helpers when none are set. */
+    List<CreditSection> creditSections() {
+        List<CreditSection> sections = new ArrayList<>();
+        for (String key : config.keys("credits.sections")) {
+            String base = "credits.sections." + key;
+            sections.add(new CreditSection(config.string(base + ".title", key), config.lines(base + ".tracks")));
+        }
+        if (sections.isEmpty()) {
+            sections.add(new CreditSection("<red><b>Staff</b>", List.of("staff")));
+            sections.add(new CreditSection("<gold><b>Helpers</b>", List.of("helper+", "helper")));
+        }
+        return sections;
+    }
+
+    /**
+     * Shows the credits: everyone on each section's tracks (each player once, in their highest
+     * section), then the extra lines. Members are looked up at most every credits.cache-seconds,
+     * since each lookup searches LuckPerms storage.
+     */
+    public void credits(Player player) {
+        List<CreditSection> sections = creditSections();
+        List<String> tracks = sections.stream().flatMap(section -> section.tracks().stream()).distinct().toList();
+        long now = clock.millis();
+        CompletableFuture<Map<String, List<String>>> members = creditMembers;
+        if (members == null || members.isCompletedExceptionally()
+                || now - creditMembersAt >= config.seconds("credits.cache-seconds") * 1000L) {
+            members = creditMembers = actions.trackMembers(tracks);
+            creditMembersAt = now;
+        }
+        members.whenCompleteAsync((found, error) -> {
+            if (error != null) {
+                LOGGER.warning("Failed to look up the credits: " + error.getMessage());
+            }
+            showCredits(player, sections, error == null ? found : Map.of());
+        }, mainThread);
+    }
+
+    private void showCredits(Player player, List<CreditSection> sections, Map<String, List<String>> members) {
+        Set<String> shown = new HashSet<>();
+        config.lines("credits.exclude").forEach(name -> shown.add(name.toLowerCase(Locale.ROOT)));
+        send(player, "credits.header");
+        for (CreditSection section : sections) {
+            List<String> names = new ArrayList<>();
+            for (String track : section.tracks()) {
+                for (String name : members.getOrDefault(track, List.of())) {
+                    if (shown.add(name.toLowerCase(Locale.ROOT))) {
+                        names.add(name);
+                    }
+                }
+            }
+            if (names.isEmpty()) {
+                continue;
+            }
+            names.sort(String.CASE_INSENSITIVE_ORDER);
+            player.sendMessage(MINI.deserialize(section.title()));
+            player.sendMessage(MINI.deserialize(config.string("credits.names", "<gray><names>"),
+                    Placeholder.unparsed("names", String.join(", ", names))));
+        }
+        send(player, "credits.extra");
     }
 
     private void update(Player player, CompletableFuture<Void> change, String successPath) {

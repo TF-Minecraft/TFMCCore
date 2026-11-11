@@ -6,7 +6,9 @@ import java.util.Set;
 import java.util.Random;
 
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -181,6 +183,15 @@ public class TFMCCore extends JavaPlugin{
             @EventHandler
             public void onQuit(PlayerQuitEvent event) {
                 tfmc.onQuit(event.getPlayer());
+            }
+
+            // /tfmc credits is kept out of the command tree so nobody is shown it; answer it here
+            @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+            public void onCredits(PlayerCommandPreprocessEvent event) {
+                if (TfmcCommand.isCredits(event.getMessage())) {
+                    event.setCancelled(true);
+                    tfmc.credits(event.getPlayer());
+                }
             }
         }, this);
     }

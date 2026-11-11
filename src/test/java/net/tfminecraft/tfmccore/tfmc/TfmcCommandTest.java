@@ -66,6 +66,10 @@ class TfmcCommandTest {
     private int packsSent;
     private boolean packRequired;
     private long clock = NOW.toEpochMilli();
+    // Track to the names LuckPerms holds on it, for /tfmc credits
+    private final Map<String, List<String>> members = new HashMap<>();
+    private RuntimeException membersFailure;
+    private int memberLookups;
 
     private CommandDispatcher<CommandSourceStack> dispatcher;
     private TfmcConfig config;
@@ -91,6 +95,63 @@ class TfmcCommandTest {
                 Clock.fixed(NOW, ZoneOffset.UTC), firstMask, mainThread::add);
         dispatcher = new CommandDispatcher<>();
         dispatcher.getRoot().addChild(command.build());
+    }
+
+    @Test
+    void creditsStayOutOfTheTreeAndListEachPlayerOnceInTheirHighestSection() throws Exception {
+        assertTrue(TfmcCommand.isCredits("/tfmc credits"));
+        assertTrue(TfmcCommand.isCredits("  /TFMC   Credits "));
+        assertTrue(TfmcCommand.isCredits("/tfmccore:tfmc credits"));
+        assertFalse(TfmcCommand.isCredits("/tfmc credits now"));
+        assertFalse(TfmcCommand.isCredits("/tfmc creditss"));
+        assertFalse(TfmcCommand.isCredits("/tfmc"));
+        assertFalse(TfmcCommand.isCredits("/credits"));
+        assertFalse(TfmcCommand.isCredits(null));
+        TestPlayer staff = everything("Staffer");
+        assertFalse(visible(staff).contains("credits"), "Never suggested, not even to staff");
+        assertThrows(CommandSyntaxException.class, () -> run(staff, "tfmc credits"), "Answered before the tree, not by it");
+
+        String yaml = Files.readString(Path.of("src/main/resources/tfmc.yml"));
+        config.loadFromString(yaml.replace("exclude: []", "exclude: [TestBot]"));
+        members.put("staff", List.of("Zed", "Alice"));
+        members.put("helper+", List.of("alice", "Bob"));
+        members.put("helper", List.of("carl", "Bob", "testbot"));
+        TestPlayer steve = player("Steve");
+        command.credits(steve.player);
+        assertTrue(steve.messages.isEmpty(), "Shown on the main thread");
+        runMainThread();
+        assertEquals(List.of("TFMC Credits", "Staff", "Alice, Zed", "Helpers", "Bob, carl", "Music",
+                "SOUND AIRYLUVS by ISAo airyluvs.com"), steve.messages);
+
+        // Looked up once per cache-seconds, so the second call still shows the first list
+        members.put("helper+", List.of("Zed"));
+        members.put("helper", List.of());
+        steve.messages.clear();
+        command.credits(steve.player);
+        runMainThread();
+        assertEquals(1, memberLookups);
+        assertTrue(steve.messages.contains("Bob, carl"), "Still the cached list");
+    }
+
+    @Test
+    void creditsWithoutLuckPermsStillShowTheExtraLinesAndTryAgainNextTime() throws Exception {
+        membersFailure = new IllegalStateException("LuckPerms is not available");
+        TestPlayer steve = player("Steve");
+        command.credits(steve.player);
+        runMainThread();
+        assertEquals(List.of("TFMC Credits", "Music", "SOUND AIRYLUVS by ISAo airyluvs.com"), steve.messages);
+        membersFailure = null;
+        members.put("staff", List.of("Alice"));
+        steve.messages.clear();
+        command.credits(steve.player);
+        runMainThread();
+        assertEquals(2, memberLookups);
+        assertTrue(steve.messages.contains("Alice"));
+
+        // Without a credits section: staff, then helpers
+        config.loadFromString("messages: {}");
+        assertEquals(List.of(new TfmcCommand.CreditSection("<red><b>Staff</b>", List.of("staff")),
+                new TfmcCommand.CreditSection("<gold><b>Helpers</b>", List.of("helper+", "helper"))), command.creditSections());
     }
 
     @Test
@@ -711,6 +772,14 @@ class TfmcCommandTest {
         @Override
         public Optional<String> highestTrack(Player player, List<String> tracks) {
             return Optional.ofNullable(highestTracks.get(player.getName())).filter(tracks::contains);
+        }
+
+        @Override
+        public CompletableFuture<Map<String, List<String>>> trackMembers(List<String> tracks) {
+            memberLookups++;
+            assertEquals(List.of("staff", "helper+", "helper"), tracks);
+            if (membersFailure != null) return CompletableFuture.failedFuture(membersFailure);
+            return CompletableFuture.completedFuture(Map.copyOf(members));
         }
 
         @Override
