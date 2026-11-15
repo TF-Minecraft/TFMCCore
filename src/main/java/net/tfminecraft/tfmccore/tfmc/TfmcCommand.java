@@ -450,8 +450,10 @@ public final class TfmcCommand {
         CompletableFuture<Map<String, List<String>>> members = creditMembers;
         // A live tfmc.yml without the credits section still caches (300 s), and a lookup still running is shared.
         long cacheSeconds = (long) config.decimal("credits.cache-seconds", 300);
+        // A lookup that hangs for a minute is given up on, so one stuck search never silences the command.
         if (members == null || members.isCompletedExceptionally()
-                || (members.isDone() && now - creditMembersAt >= cacheSeconds * 1000L)) {
+                || (members.isDone() && now - creditMembersAt >= cacheSeconds * 1000L)
+                || (!members.isDone() && now - creditMembersAt >= 60_000L)) {
             members = creditMembers = actions.trackMembers(tracks);
             creditMembersAt = now;
         }
