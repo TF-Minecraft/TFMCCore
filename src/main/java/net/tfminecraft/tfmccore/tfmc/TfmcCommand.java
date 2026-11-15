@@ -14,6 +14,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -450,11 +451,10 @@ public final class TfmcCommand {
         CompletableFuture<Map<String, List<String>>> members = creditMembers;
         // A live tfmc.yml without the credits section still caches (300 s), and a lookup still running is shared.
         long cacheSeconds = (long) config.decimal("credits.cache-seconds", 300);
-        // A lookup that hangs for a minute is given up on, so one stuck search never silences the command.
         if (members == null || members.isCompletedExceptionally()
-                || (members.isDone() && now - creditMembersAt >= cacheSeconds * 1000L)
-                || (!members.isDone() && now - creditMembersAt >= 60_000L)) {
-            members = creditMembers = actions.trackMembers(tracks);
+                || (members.isDone() && now - creditMembersAt >= cacheSeconds * 1000L)) {
+            // A lookup that hangs for a minute fails, so everyone waiting gets the remembered names instead.
+            members = creditMembers = actions.trackMembers(tracks).orTimeout(60, TimeUnit.SECONDS);
             creditMembersAt = now;
         }
         members.whenCompleteAsync((found, error) -> {
