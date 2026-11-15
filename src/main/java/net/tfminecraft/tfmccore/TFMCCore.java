@@ -188,7 +188,8 @@ public class TFMCCore extends JavaPlugin{
             }
 
             // /tfmc credits is kept out of the command tree so nobody is shown it; answer it here
-            @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+            // HIGH so other plugins' command gates (login, jail and the like) refuse it first
+            @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
             public void onCredits(PlayerCommandPreprocessEvent event) {
                 if (TfmcCommand.isCredits(event.getMessage())) {
                     event.setCancelled(true);

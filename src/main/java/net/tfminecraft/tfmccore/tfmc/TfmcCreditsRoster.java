@@ -2,12 +2,15 @@ package net.tfminecraft.tfmccore.tfmc;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.logging.Logger;
 
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 /**
@@ -23,11 +26,22 @@ public final class TfmcCreditsRoster {
 
     private final File file;
     private final Map<String, Entry> players = new LinkedHashMap<>();
+    /** The file could not be read: it is left as it is and never overwritten until fixed and reloaded. */
+    private boolean readOnly;
 
     public TfmcCreditsRoster(File file) {
         this.file = file;
         if (file != null && file.isFile()) {
-            ConfigurationSection saved = YamlConfiguration.loadConfiguration(file).getConfigurationSection("players");
+            YamlConfiguration yaml = new YamlConfiguration();
+            try {
+                yaml.load(file);
+            } catch (IOException | InvalidConfigurationException e) {
+                readOnly = true;
+                LOGGER.warning("Could not read " + file.getName() + " (" + e.getMessage()
+                        + "); it is left untouched and not saved until it is fixed.");
+                return;
+            }
+            ConfigurationSection saved = yaml.getConfigurationSection("players");
             if (saved != null) {
                 for (String key : saved.getKeys(false)) {
                     String section = saved.getString(key + ".section", "");
@@ -66,7 +80,7 @@ public final class TfmcCreditsRoster {
     }
 
     public void save() {
-        if (file == null) {
+        if (file == null || readOnly) {
             return;
         }
         YamlConfiguration out = new YamlConfiguration();
@@ -77,8 +91,11 @@ public final class TfmcCreditsRoster {
             out.set("players." + key + ".section", entry.section());
             out.set("players." + key + ".name", entry.name());
         });
+        // Written beside it and moved into place, so a crash mid-write never leaves half a roster.
+        File temp = new File(file.getParentFile(), file.getName() + ".tmp");
         try {
-            out.save(file);
+            out.save(temp);
+            Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
             LOGGER.warning("Failed to save " + file.getName() + ": " + e.getMessage());
         }

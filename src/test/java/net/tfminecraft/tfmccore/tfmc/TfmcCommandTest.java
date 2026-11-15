@@ -206,6 +206,18 @@ class TfmcCommandTest {
         new TfmcCreditsRoster(null).save();
     }
 
+    @Test
+    void anUnreadableRosterIsNeverOverwritten(@org.junit.jupiter.api.io.TempDir Path dir) throws Exception {
+        Path file = dir.resolve("credits-roster.yml");
+        String broken = "players:\n  bob: [unclosed\n";
+        Files.writeString(file, broken);
+        TfmcCreditsRoster roster = new TfmcCreditsRoster(file.toFile());
+        assertTrue(roster.players().isEmpty());
+        assertTrue(roster.record("Ann", "staff", Map.of("staff", 0)));
+        roster.save();
+        assertEquals(broken, Files.readString(file), "The hand-edited file is kept as it was");
+    }
+
     private static List<String> trimmed(TestPlayer player) {
         return player.messages.stream().map(String::trim).toList();
     }

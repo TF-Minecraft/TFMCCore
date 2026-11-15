@@ -448,8 +448,10 @@ public final class TfmcCommand {
         List<String> tracks = sections.stream().flatMap(section -> section.tracks().stream()).distinct().toList();
         long now = clock.millis();
         CompletableFuture<Map<String, List<String>>> members = creditMembers;
+        // A live tfmc.yml without the credits section still caches (300 s), and a lookup still running is shared.
+        long cacheSeconds = (long) config.decimal("credits.cache-seconds", 300);
         if (members == null || members.isCompletedExceptionally()
-                || now - creditMembersAt >= config.seconds("credits.cache-seconds") * 1000L) {
+                || (members.isDone() && now - creditMembersAt >= cacheSeconds * 1000L)) {
             members = creditMembers = actions.trackMembers(tracks);
             creditMembersAt = now;
         }
