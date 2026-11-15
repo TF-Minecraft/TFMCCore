@@ -111,7 +111,8 @@ class PluginLifecycleCoverageTest {
           "factionsstats.yml",
           "animal-whistle-config.yml",
           "lorestones-config.yml",
-          "tfmc.yml");
+          "tfmc.yml",
+          "guide.yml");
   @TempDir Path directory;
 
   @BeforeAll
@@ -311,6 +312,12 @@ class PluginLifecycleCoverageTest {
       when(event.registrar()).thenReturn(registrar);
       rig.commandHandler.run(event);
       verify(registrar).register(rig.commandNode, "TFMC player commands");
+      verify(registrar)
+          .register(
+              argThat(
+                  (LiteralCommandNode<CommandSourceStack> node) ->
+                      node != null && node.getName().equals("guide")),
+              eq("Links to the Gameplay Guide on the website"));
       Runnable resultDelivery = mock(Runnable.class);
       rig.commandExecutor.execute(resultDelivery);
       verify(rig.scheduler).runTask(rig.plugin, resultDelivery);
@@ -803,6 +810,7 @@ class PluginLifecycleCoverageTest {
         when(factions.loadChecked(any())).thenReturn(true);
         setField(plugin, "factionsStatConfig", factions);
         setField(plugin, "tfmcConfig", tfmc);
+        setField(plugin, "guideConfig", new net.tfminecraft.tfmccore.guide.GuideConfig());
         setField(plugin, "coreManager", mock(CoreManager.class));
         setField(plugin, "dropManager", mock(DropManager.class));
         setField(plugin, "stationManager", mock(StationManager.class));

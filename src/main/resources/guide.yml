@@ -1,0 +1,148 @@
+# /guide links players to the Gameplay Guide on the website. It only posts links; the guide
+# itself lives on the website. Changes apply after /tcore reload guide.
+#
+# Each topic's link is base-url followed by its path: "/factions" or "/factions#government"
+# (a section anchor). An empty path links base-url itself; a full https:// address is used as it is.
+# Topic ids are what players type after /guide: lowercase letters, digits, - and _.
+# Topics are listed in this order. Link only player-facing pages: no staff tools or hidden content.
+base-url: "https://www.tfminecraft.net/wiki"
+
+topics:
+  overview:
+    path: ""
+    title: "Overview"
+    description: "Every section of the guide, grouped by topic."
+  start:
+    path: "/getting-started"
+    title: "Getting Started"
+    description: "Join the server, pass the rules quiz, link Discord, create your first character and pick up daily tasks."
+  characters:
+    path: "/characters"
+    title: "Characters"
+    description: "Choose and create characters, and learn how chat, injuries, death and clues work."
+  classes:
+    path: "/classes"
+    title: "Classes & Professions"
+    description: "Pick a class and a subclass, slot your skills, spend attribute points and level three professions."
+  roleplay:
+    path: "/roleplay-tools"
+    title: "Roleplay Tools"
+    description: "Sit, lie down and crawl, pose armor stands, wear masks, hang pictures, edit books, and name your items."
+  factions:
+    path: "/factions"
+    title: "Factions"
+    description: "Join or found a faction, claim provinces, earn prestige and titles, and run its government."
+  government:
+    path: "/factions#government"
+    title: "Faction Government"
+    description: "Government, laws, council, elections and taxes, all in /faction menu."
+  guilds:
+    path: "/guilds"
+    title: "Guilds & Trade"
+    description: "Run a guild inside your faction, bank its money, build installations and pay vehicle upkeep."
+  war:
+    path: "/war"
+    title: "War & Mercenaries"
+    description: "Declare war, fight scheduled battles and raids, keep regiments, and hire or run a mercenary company."
+  money:
+    path: "/economy"
+    title: "Money & Market Blocks"
+    description: "Denars: your pouch and bank, coins, earning money and selling goods at Market Blocks."
+  crafting:
+    path: "/advanced-crafting"
+    title: "Advanced Crafting"
+    description: "Forge weapons, armour and bows, and invent your own alloys."
+  gems:
+    path: "/gem-infusion"
+    title: "Gems & Goldsmithing"
+    description: "Infuse gemstones, then set them in gold jewellery."
+  woodworking:
+    path: "/woodworking"
+    title: "Woodworking"
+    description: "Carve decorative furniture pieces, each with a 3D preview."
+  materials:
+    path: "/materials"
+    title: "Materials"
+    description: "Every custom crafting material: where to find it and what it makes."
+  cooking:
+    path: "/cooking"
+    title: "Cooking"
+    description: "Cook on furniture you place: pans, pots, ovens, cutting boards and more."
+  farming:
+    path: "/farming"
+    title: "Farming"
+    description: "Field crops and hoes, custom crops, open sky and province fertility."
+  fishing:
+    path: "/fishing"
+    title: "Fishing"
+    description: "What each biome and rod can catch, hooks, and the catch minigame."
+  animals:
+    path: "/animal-husbandry"
+    title: "Animal Husbandry"
+    description: "Claim farm animals, care for them and breed them for better meat, milk and materials."
+  brewing:
+    path: "/brewing"
+    title: "Brewing"
+    description: "Brew, distil and age drinks, or design your own on the website."
+  nodes:
+    path: "/dowsing"
+    title: "Resource Nodes"
+    description: "A guild-run mine, farm, forestry or quarry that keeps producing while it is active."
+  magic:
+    path: "/magic"
+    title: "Magic"
+    description: "The four schools, Resonance, shrines, artifacts and meditation."
+  research:
+    path: "/research"
+    title: "Research"
+    description: "Study papers and runestones at a lectern by testing items to find their hidden aspects."
+  archaeology:
+    path: "/archaeology"
+    title: "Archaeology"
+    description: "Find a ruin, establish a field camp, excavate by sound, then clean, register and display finds."
+  vehicles:
+    path: "/vehicles"
+    title: "Vehicles & Construction"
+    description: "Build, crew, fuel and repair vehicles, with 3D previews and complete blueprints."
+  guns:
+    path: "/guns"
+    title: "Guns & Gunsmithing"
+    description: "Build a gun from parts at the Gunsmithing Station, make ammunition, and fire it as a Musketeer."
+  thievery:
+    path: "/thievery"
+    title: "Thievery"
+    description: "Thieves and bandits: picking locks and pockets, robbing players and looting graves."
+  locks:
+    path: "/locks"
+    title: "Locks & Keys"
+    description: "Lock your doors with a key, choose who can open your chests, and copy keys for friends."
+  medicine:
+    path: "/medicine"
+    title: "Medicine & Surgery"
+    description: "Become a physician, operate on healing injuries and make prosthetic limbs."
+  account:
+    path: "/server-features"
+    title: "Account & Website"
+    description: "Link Discord, sign in to the website, support the server, and handy account commands."
+  commands:
+    path: "/commands"
+    title: "Command Index"
+    description: "Every command a player can type, grouped by topic, with the page that explains it."
+
+# Messages use MiniMessage (https://docs.advntr.dev/minimessage/format). A message may be a
+# single string or a list of lines. <title>, <id>, <url> and <description> are the topic's.
+# <open>...</open> opens the topic's page when clicked; <suggest>...</suggest> puts
+# /guide <id> in the chat box when clicked.
+messages:
+  header:
+    - "<gold><b>Gameplay Guide</b></gold> <dark_gray>|</dark_gray> <gray>Click a topic to open its page on the website."
+  # One line per topic in /guide. topic-hover shows when hovering over the <open> part.
+  topic: "<dark_gray> » </dark_gray><open><yellow><title></yellow></open> <suggest><dark_gray>[/guide <id>]</dark_gray></suggest>"
+  topic-hover: "<gray><description>"
+  suggest-hover: "<gray>Click to type <white>/guide <id></white>"
+  # /guide <topic>. link-hover shows when hovering over the <open> part.
+  link: "<gold>Gameplay Guide: </gold><open><yellow><u><title></u></yellow></open> <gray><description>"
+  link-hover: "<gray>Open <white><url></white>"
+  # <topic> is what the player typed. The topic list follows.
+  unknown: "<red>There is no guide topic called <yellow><topic></yellow>."
+  empty: "<red>No guide topics are set up yet."

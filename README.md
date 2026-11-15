@@ -12,6 +12,7 @@ These features give other TF-Minecraft plugins common building blocks while also
 - **Animal whistles** — highlight nearby supported animals to help players locate them.
 - **Shared gameplay rules** — custom drop handling and station interactions connect everyday world actions to server content.
 - **Player utilities** — shared player commands and resource-pack delivery support everyday server use.
+- **Gameplay Guide links** — `/guide` lists the website Gameplay Guide topics as clickable links (hover shows what each covers), and `/guide <topic>` links one page or section. Topics, the base URL and messages live in `guide.yml` (`/tcore reload guide`); everyone has `tfmccore.guide`.
 - **Resource-pack texture guard** — warns the console and staff when the ItemsAdder pack holds a texture over 16384 px, which stops the whole pack loading on most Intel graphics.
 - **Required pack on join** — opt-in (`resource-pack.require-on-join`); sends the pack as required and publishes `tfmccore:required-pack` player metadata (`loading`, `ready`, `failed`) for RPCharacters. Staff retry a failed load with `/tcore packretry <player>`.
 - **Book appearance** — optionally hides the default glint on signed books by storing a glint override on the books (`hide-book-glint`).
@@ -37,7 +38,7 @@ mvn -B --no-transfer-progress clean verify
 ```
 
 JUnit 5 and Mockito tests cover drops, statistics storage, stone and whistle
-configuration, player commands, signed-book appearance, the Xaero fair-play listener
+configuration, player commands (including `/guide`), signed-book appearance, the Xaero fair-play listener
 and resource-pack compaction and delivery, with server and plugin APIs mocked.
 Surefire writes test results to `target/surefire-reports/`. CI runs verification
 on pushes and pull requests to `main` and uploads those reports;
