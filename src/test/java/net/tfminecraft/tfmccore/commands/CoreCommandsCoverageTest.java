@@ -282,7 +282,9 @@ class CoreCommandsCoverageTest {
                 "lorestones config",
                 (Function<TFMCCore, Boolean>) TFMCCore::reloadStonesConfig),
             Arguments.of(
-                "tfmc", "/tfmc config", (Function<TFMCCore, Boolean>) TFMCCore::reloadTfmcConfig))
+                "tfmc", "/tfmc config", (Function<TFMCCore, Boolean>) TFMCCore::reloadTfmcConfig),
+            Arguments.of(
+                "guide", "/guide topics", (Function<TFMCCore, Boolean>) TFMCCore::reloadGuideConfig))
         .flatMap(
             row ->
                 Stream.of(true, false)
@@ -315,7 +317,7 @@ class CoreCommandsCoverageTest {
 
     verify(console)
         .sendMessage(
-            "Usage: /tcore reload [all|config|drops|stations|stats|whistle|lorestones|tfmc]");
+            "Usage: /tcore reload [all|config|drops|stations|stats|whistle|lorestones|tfmc|guide]");
     verifyNoInteractions(plugin);
   }
 

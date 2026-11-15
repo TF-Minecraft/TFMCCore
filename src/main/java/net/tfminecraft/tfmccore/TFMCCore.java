@@ -22,6 +22,8 @@ import net.tfminecraft.tfmccore.commands.CoreCommands;
 import net.tfminecraft.tfmccore.commands.CoreTabCompletion;
 import net.tfminecraft.tfmccore.commands.SilentPermissionCommand;
 import net.tfminecraft.tfmccore.golem.GolemListener;
+import net.tfminecraft.tfmccore.guide.GuideCommand;
+import net.tfminecraft.tfmccore.guide.GuideConfig;
 import net.tfminecraft.tfmccore.health.MaxHealthRounder;
 import net.tfminecraft.tfmccore.health.WoundedHealing;
 import net.tfminecraft.tfmccore.indicators.RealDamageIndicators;
@@ -71,6 +73,7 @@ public class TFMCCore extends JavaPlugin{
     private final SkillsStatConfig skillsStatConfig = new SkillsStatConfig();
     private final FactionsStatConfig factionsStatConfig = new FactionsStatConfig();
     private final TfmcConfig tfmcConfig = new TfmcConfig();
+    private final GuideConfig guideConfig = new GuideConfig();
     private TfmcCommand tfmcCommand;
 
     private final CoreManager coreManager = new CoreManager();
@@ -179,8 +182,11 @@ public class TFMCCore extends JavaPlugin{
         TfmcCommand tfmc = tfmcCommand = new TfmcCommand(tfmcConfig, cooldowns, new BukkitTfmcActions(this),
                 Clock.systemDefaultZone(), new Random(), task -> getServer().getScheduler().runTask(this, task),
                 new TfmcCreditsRoster(new File(getDataFolder(), "credits-roster.yml")));
-        getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
-                event -> event.registrar().register(tfmc.build(), "TFMC player commands"));
+        GuideCommand guide = new GuideCommand(guideConfig);
+        getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
+            event.registrar().register(tfmc.build(), "TFMC player commands");
+            event.registrar().register(guide.build(), GuideCommand.DESCRIPTION);
+        });
         getServer().getPluginManager().registerEvents(new Listener() {
             @EventHandler
             public void onQuit(PlayerQuitEvent event) {
@@ -254,6 +260,7 @@ public class TFMCCore extends JavaPlugin{
         ok &= reloadStonesConfig();
         ok &= reloadStatsConfigs();
         ok &= reloadTfmcConfig();
+        ok &= reloadGuideConfig();
         return ok;
     }
 
@@ -264,6 +271,11 @@ public class TFMCCore extends JavaPlugin{
             getServer().getOnlinePlayers().forEach(org.bukkit.entity.Player::updateCommands);
         }
         return ok;
+    }
+
+    /** Topics are read on every use, so a reload needs no command tree resend. */
+    public boolean reloadGuideConfig() {
+        return guideConfig.load(new File(getDataFolder(), "guide.yml"));
     }
 
     public boolean reloadAll() {
@@ -391,7 +403,8 @@ public class TFMCCore extends JavaPlugin{
                 "factionsstats.yml",
                 "animal-whistle-config.yml",
                 "lorestones-config.yml",
-                "tfmc.yml"
+                "tfmc.yml",
+                "guide.yml"
         };
 
         for (String s : files) {
