@@ -44,7 +44,8 @@ public final class GuideCommand {
                     list(context.getSource().getSender());
                     return Command.SINGLE_SUCCESS;
                 })
-                .then(Commands.argument("topic", StringArgumentType.word())
+                .then(Commands.argument("topic", StringArgumentType.greedyString())
+                        // Greedy, so a typo such as "war battles" gets the unknown-topic list, not a syntax error.
                         // Read on every request, so topics added by /tcore reload guide are offered at once
                         .suggests(topics())
                         .executes(context -> show(context.getSource().getSender(),
