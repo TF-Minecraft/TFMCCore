@@ -216,6 +216,12 @@ class TfmcCommandTest {
         assertTrue(roster.record("Ann", "staff", Map.of("staff", 0)));
         roster.save();
         assertEquals(broken, Files.readString(file), "The hand-edited file is kept as it was");
+        Path blocked = dir.resolve("blocked");
+        Files.createDirectories(blocked.resolve("inside"));
+        TfmcCreditsRoster unwritable = new TfmcCreditsRoster(blocked.toFile());
+        assertTrue(unwritable.record("Ann", "staff", Map.of("staff", 0)));
+        unwritable.save();
+        assertTrue(Files.isDirectory(blocked.resolve("inside")), "A failed save is only logged");
     }
 
     private static List<String> trimmed(TestPlayer player) {

@@ -95,11 +95,7 @@ public final class TfmcCreditsRoster {
         File temp = new File(file.getParentFile(), file.getName() + ".tmp");
         try {
             out.save(temp);
-            try {
-                Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
-                Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            }
+            Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             LOGGER.warning("Failed to save " + file.getName() + ": " + e.getMessage());
         }

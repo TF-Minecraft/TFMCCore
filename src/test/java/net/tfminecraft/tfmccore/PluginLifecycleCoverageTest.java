@@ -78,6 +78,7 @@ import org.bukkit.damage.DamageType;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginDescriptionFile;
@@ -326,6 +327,18 @@ class PluginLifecycleCoverageTest {
           new PlayerQuitEvent(
               rig.player, Component.empty(), PlayerQuitEvent.QuitReason.DISCONNECTED));
       verify(rig.commands.constructed().getFirst()).onQuit(rig.player);
+      var onCredits = quit.getClass().getDeclaredMethod("onCredits", PlayerCommandPreprocessEvent.class);
+      onCredits.setAccessible(true);
+      PlayerCommandPreprocessEvent credits = mock(PlayerCommandPreprocessEvent.class);
+      when(credits.getMessage()).thenReturn("/tfmc credits");
+      when(credits.getPlayer()).thenReturn(rig.player);
+      onCredits.invoke(quit, credits);
+      verify(credits).setCancelled(true);
+      verify(rig.commands.constructed().getFirst()).credits(rig.player);
+      PlayerCommandPreprocessEvent other = mock(PlayerCommandPreprocessEvent.class);
+      when(other.getMessage()).thenReturn("/tfmc patreon");
+      onCredits.invoke(quit, other);
+      verify(other, never()).setCancelled(true);
 
       rig.plugin.onDisable();
 
