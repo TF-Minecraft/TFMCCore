@@ -31,6 +31,8 @@ public final class GuideConfig {
     // Topic ids are a single Brigadier word, matched without case
     private static final Pattern TOPIC_ID = Pattern.compile("[a-z0-9_-]+");
     private static final Pattern ABSOLUTE = Pattern.compile("(?i)https?://.+");
+    /** Any scheme prefix such as https:, ftp: or mailto:; a path with one that is not a full http(s) address is refused. */
+    private static final Pattern SCHEME = Pattern.compile("^[a-zA-Z][a-zA-Z0-9+.-]*:");
     private static final Map<String, String> DEFAULT_MESSAGES = Map.of(
             "header", "<gold><b>Gameplay Guide</b></gold> <dark_gray>|</dark_gray> <gray>Click a topic to open its page on the website.",
             "topic", "<dark_gray> » </dark_gray><open><yellow><title></yellow></open> <suggest><dark_gray>[/guide <id>]</dark_gray></suggest>",
@@ -127,6 +129,8 @@ public final class GuideConfig {
         String url;
         if (ABSOLUTE.matcher(path).matches()) {
             url = path;
+        } else if (SCHEME.matcher(path).find()) {
+            return null;
         } else if (path.isEmpty() || path.startsWith("/") || path.startsWith("#") || path.startsWith("?")) {
             url = base + path;
         } else {

@@ -90,6 +90,9 @@ class GuideConfigTest {
         assertNull(GuideConfig.url("ftp://a.org", "/x"));
         assertNull(GuideConfig.url("wiki", "/x"));
         assertNull(GuideConfig.url("https://a.org", "/a b"));
+        assertNull(GuideConfig.url("https://a.org/wiki", "https://"));
+        assertNull(GuideConfig.url("https://a.org/wiki", "ftp://example.org/help"));
+        assertNull(GuideConfig.url("https://a.org/wiki", "mailto:staff@example.org"));
     }
 
     @Test
