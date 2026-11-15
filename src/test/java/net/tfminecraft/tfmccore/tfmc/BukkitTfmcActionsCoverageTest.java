@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -284,6 +285,61 @@ class BukkitTfmcActionsCoverageTest {
     when(node.getType()).thenReturn(NodeType.PERMISSION);
     when(node.getPermission()).thenReturn(name);
     when(node.getContexts()).thenReturn(context);
+    return node;
+  }
+
+  @Test
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  void trackMembersFindEveryoneWithAGlobalGroupOnTheTrackByName() {
+    LuckPerms api = mock(LuckPerms.class, RETURNS_DEEP_STUBS);
+    Track staff = mock(Track.class);
+    when(staff.getGroups()).thenReturn(List.of("staff_player", "staff"));
+    when(api.getTrackManager().getTrack("staff")).thenReturn(staff);
+    when(api.getTrackManager().getTrack("missing")).thenReturn(null);
+    var offDuty = mock(net.luckperms.api.node.matcher.NodeMatcher.class);
+    var onDuty = mock(net.luckperms.api.node.matcher.NodeMatcher.class);
+    when(api.getNodeMatcherFactory().key("group.staff_player")).thenReturn(offDuty);
+    when(api.getNodeMatcherFactory().key("group.staff")).thenReturn(onDuty);
+    UUID alice = UUID.randomUUID(), devOnly = UUID.randomUUID(), dave = UUID.randomUUID(), lapsed = UUID.randomUUID();
+    Map<UUID, java.util.Collection<Node>> offDutyFound = new java.util.LinkedHashMap<>();
+    offDutyFound.put(alice, List.of(node(true, false, true)));
+    offDutyFound.put(devOnly, List.of(node(true, false, false)));
+    Map<UUID, java.util.Collection<Node>> onDutyFound = new java.util.LinkedHashMap<>();
+    onDutyFound.put(alice, List.of(node(true, false, true)));
+    onDutyFound.put(dave, List.of(node(true, false, true)));
+    onDutyFound.put(lapsed, List.of(node(true, true, true), node(false, false, true)));
+    when(api.getUserManager().searchAll((net.luckperms.api.node.matcher.NodeMatcher) offDuty))
+        .thenReturn(CompletableFuture.completedFuture(offDutyFound));
+    when(api.getUserManager().searchAll((net.luckperms.api.node.matcher.NodeMatcher) onDuty))
+        .thenReturn(CompletableFuture.completedFuture(onDutyFound));
+    when(api.getUserManager().lookupUsername(dave)).thenReturn(CompletableFuture.completedFuture("dave"));
+    try (var bukkit = mockStatic(Bukkit.class)) {
+      org.bukkit.OfflinePlayer seen = mock(org.bukkit.OfflinePlayer.class);
+      when(seen.getName()).thenReturn("Alice");
+      org.bukkit.OfflinePlayer unseen = mock(org.bukkit.OfflinePlayer.class);
+      bukkit.when(() -> Bukkit.getOfflinePlayer(alice)).thenReturn(seen);
+      bukkit.when(() -> Bukkit.getOfflinePlayer(dave)).thenReturn(unseen);
+
+      Map<String, List<String>> members =
+          new BukkitTfmcActions(null, () -> api).trackMembers(List.of("staff", "missing")).join();
+
+      // Alice once though on two groups; a dev-only group, a lapsed and a negated one do not count
+      assertEquals(Map.of("staff", List.of("Alice", "dave"), "missing", List.of()), members);
+    }
+    CompletionException failure =
+        assertThrows(
+            CompletionException.class,
+            () -> new BukkitTfmcActions(null, () -> null).trackMembers(List.of("staff")).join());
+    assertEquals("LuckPerms is not available", failure.getCause().getMessage());
+  }
+
+  private static Node node(boolean value, boolean expired, boolean global) {
+    Node node = mock(Node.class);
+    ImmutableContextSet contexts = mock(ImmutableContextSet.class);
+    when(contexts.isEmpty()).thenReturn(global);
+    when(node.getValue()).thenReturn(value);
+    when(node.hasExpired()).thenReturn(expired);
+    when(node.getContexts()).thenReturn(contexts);
     return node;
   }
 }

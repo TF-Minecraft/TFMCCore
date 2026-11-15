@@ -1,8 +1,14 @@
 package net.tfminecraft.tfmccore.tfmc;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,6 +31,8 @@ import net.luckperms.api.context.ContextSetFactory;
 import net.luckperms.api.context.DefaultContextKeys;
 import net.luckperms.api.context.ImmutableContextSet;
 import net.luckperms.api.model.user.User;
+import net.luckperms.api.model.user.UserManager;
+import net.luckperms.api.node.Node;
 import net.luckperms.api.node.NodeType;
 import net.luckperms.api.node.types.InheritanceNode;
 import net.luckperms.api.track.Track;
@@ -161,6 +169,60 @@ public final class BukkitTfmcActions implements TfmcActions {
             }
             return save(api, user).thenApply(done -> step);
         });
+    }
+
+    @Override
+    public CompletableFuture<Map<String, List<String>>> trackMembers(List<String> trackNames) {
+        LuckPerms api = luckPerms.get();
+        if (api == null) {
+            return CompletableFuture.failedFuture(new IllegalStateException("LuckPerms is not available"));
+        }
+        UserManager users = api.getUserManager();
+        // Searches storage, so offline players count too; one search per group on each track
+        Map<String, List<CompletableFuture<Map<UUID, Collection<Node>>>>> searches = new LinkedHashMap<>();
+        for (String name : trackNames) {
+            Track track = api.getTrackManager().getTrack(name);
+            List<CompletableFuture<Map<UUID, Collection<Node>>>> groups = new ArrayList<>();
+            if (track == null) {
+                LOGGER.warning("No LuckPerms track " + name + " for /tfmc credits");
+            } else {
+                for (String group : track.getGroups()) {
+                    groups.add(users.searchAll(api.getNodeMatcherFactory().key("group." + group)));
+                }
+            }
+            searches.put(name, groups);
+        }
+        CompletableFuture<?>[] all = searches.values().stream().flatMap(List::stream).toArray(CompletableFuture[]::new);
+        return CompletableFuture.allOf(all).thenCompose(done -> {
+            Map<String, Set<UUID>> members = new LinkedHashMap<>();
+            Map<UUID, CompletableFuture<String>> names = new LinkedHashMap<>();
+            searches.forEach((track, groups) -> {
+                Set<UUID> ids = new LinkedHashSet<>();
+                for (CompletableFuture<Map<UUID, Collection<Node>>> group : groups) {
+                    group.join().forEach((id, nodes) -> {
+                        // Only the stored global group: the same rule track steps follow
+                        if (nodes.stream().anyMatch(node -> node.getValue() && !node.hasExpired() && node.getContexts().isEmpty())) {
+                            ids.add(id);
+                        }
+                    });
+                }
+                members.put(track, ids);
+                ids.forEach(id -> names.computeIfAbsent(id, unknown -> name(users, unknown)));
+            });
+            return CompletableFuture.allOf(names.values().toArray(CompletableFuture[]::new)).thenApply(named -> {
+                Map<String, List<String>> out = new LinkedHashMap<>();
+                members.forEach((track, ids) -> out.put(track, ids.stream()
+                        .map(id -> names.get(id).join()).filter(Objects::nonNull).toList()));
+                return out;
+            });
+        });
+    }
+
+    /** The name as last seen on this server (with its capitals), else LuckPerms' stored one. */
+    private static CompletableFuture<String> name(UserManager users, UUID id) {
+        String seen = Bukkit.getOfflinePlayer(id).getName();
+        return seen != null ? CompletableFuture.completedFuture(seen)
+                : users.lookupUsername(id).exceptionally(error -> null);
     }
 
     @Override
