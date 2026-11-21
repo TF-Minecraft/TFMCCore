@@ -64,7 +64,6 @@ class TfmcCommandTest {
     private RuntimeException trackFailure;
     private final List<Runnable> mainThread = new ArrayList<>();
     private int packsSent;
-    private boolean packRequired;
     private long clock = NOW.toEpochMilli();
     // Track to the names LuckPerms holds on it, for /tfmc credits
     private final Map<String, List<String>> members = new HashMap<>();
@@ -387,29 +386,21 @@ class TfmcCommandTest {
     }
 
     @Test
-    void packSendsTheResourcePackAndTogglesAutoApply() throws Exception {
-        TestPlayer steve = player("Steve");
-        run(steve, "tfmc pack");
-        assertEquals(1, packsSent);
-        assertEquals("Loading Resource Pack...", steve.messages.get(0));
-
-        assertTrue(steve.messages.get(2).startsWith("Use /tfmc pack auto"));
-
-        run(steve, "tfmc pack auto");
-        assertEquals(List.of("Steve tfmcresourcepack.enable true"), permissionChanges);
-    }
-
-    @Test
-    void packHidesAutoApplyWhereTheJoinGateSendsItToEveryone() throws Exception {
-        packRequired = true;
-        dispatcher = new CommandDispatcher<>();
-        dispatcher.getRoot().addChild(command.build());
+    void packSendsTheResourcePackWithoutAnAutoApplyToggle() throws Exception {
         TestPlayer steve = player("Steve");
         assertTrue(visible(steve, "pack").isEmpty());
         run(steve, "tfmc pack");
         assertEquals(1, packsSent);
-        assertEquals(2, steve.messages.size());
+        assertEquals(List.of("Loading Resource Pack...",
+                "If you still cannot see the textures, consult the Discord FAQ or open a Ticket."), steve.messages);
+
+        // A player who once chose auto-apply gets the same reply, and the old preference stays untouched
+        TestPlayer automatic = player("Auto", "tfmcresourcepack.enable");
+        run(automatic, "tfmc pack");
+        assertEquals(steve.messages, automatic.messages);
         assertThrows(CommandSyntaxException.class, () -> dispatcher.execute("tfmc pack auto", source(steve.player)));
+        assertThrows(CommandSyntaxException.class, () -> dispatcher.execute("tfmc pack manual", source(automatic.player)));
+        assertEquals(2, packsSent);
         assertTrue(permissionChanges.isEmpty());
     }
 
@@ -625,19 +616,6 @@ class TfmcCommandTest {
     }
 
     @Test
-    void resourcePackPreferencesAvoidRedundantPermissionWrites() throws Exception {
-        TestPlayer automatic = player("Auto", "tfmcresourcepack.enable");
-        run(automatic, "tfmc pack auto");
-        assertEquals("Resource Pack Auto-Apply is already enabled.", automatic.messages.getFirst());
-        TestPlayer manual = player("Manual");
-        run(manual, "tfmc pack manual");
-        assertEquals("Resource Pack Auto-Apply is already disabled.", manual.messages.getFirst());
-        assertTrue(permissionChanges.isEmpty());
-        run(automatic, "tfmc pack manual");
-        assertEquals(List.of("Auto tfmcresourcepack.enable false"), permissionChanges);
-    }
-
-    @Test
     void invalidPatternMaterialsAreSkippedAndTheCooldownPreventsDuplicateItems() throws Exception {
         config.loadFromString("""
                 patterns:
@@ -801,11 +779,6 @@ class TfmcCommandTest {
         @Override
         public void sendResourcePack(Player player) {
             packsSent++;
-        }
-
-        @Override
-        public boolean packRequiredOnJoin() {
-            return packRequired;
         }
 
         @Override
